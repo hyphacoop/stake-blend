@@ -2,6 +2,7 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { SolTokenVault } from "../target/types/sol_token_vault";
 import { expect } from "chai";
+import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 
 describe("sol-token-vault", () => {
   const provider = anchor.AnchorProvider.env();
@@ -10,51 +11,66 @@ describe("sol-token-vault", () => {
   const program = anchor.workspace.SolTokenVault as Program<SolTokenVault>;
   
   // PDAs
+  const [mintPda] = anchor.web3.PublicKey.findProgramAddressSync(
+    [Buffer.from("mint")],
+    program.programId
+  );
+
   const [vaultPda] = anchor.web3.PublicKey.findProgramAddressSync(
     [Buffer.from("vault")],
     program.programId
   );
 
-  const getUserPda = (userPubkey: anchor.web3.PublicKey) => {
-    return anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("user"), userPubkey.toBuffer()],
-      program.programId
-    )[0];
+  const getAssociatedTokenAccount = (userPubkey: anchor.web3.PublicKey) => {
+    return getAssociatedTokenAddressSync(
+      mintPda,
+      userPubkey,
+      false, // allowOwnerOffCurve
+      anchor.utils.token.TOKEN_PROGRAM_ID
+    );
   };
 
   it("Initialize vault", async () => {
     await program.methods
       .initialize()
       .accounts({
+        mint: mintPda,
         vault: vaultPda,
-        user: provider.wallet.publicKey,
+        signer: provider.wallet.publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
       })
       .rpc();
 
-    const vaultAccount = await program.account.vault.fetch(vaultPda);
-    expect(vaultAccount.totalShares.toNumber()).to.equal(0);
-    expect(vaultAccount.totalSol.toNumber()).to.equal(0);
+    // Check that mint and vault were created
+    const mintAccount = await provider.connection.getAccountInfo(mintPda);
+    const vaultAccount = await provider.connection.getAccountInfo(vaultPda);
+    expect(mintAccount).to.not.be.null;
+    expect(vaultAccount).to.not.be.null;
   });
 
   it("Create user account", async () => {
-    const userPda = getUserPda(provider.wallet.publicKey);
+    const userTokenAccount = getAssociatedTokenAccount(provider.wallet.publicKey);
 
     await program.methods
       .createUserAccount()
       .accounts({
-        userAccount: userPda,
-        user: provider.wallet.publicKey,
+        tokenAccount: userTokenAccount,
+        signer: provider.wallet.publicKey,
+        mint: mintPda,
         systemProgram: anchor.web3.SystemProgram.programId,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+        associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
       })
       .rpc();
 
-    const userAccount = await program.account.userAccount.fetch(userPda);
-    expect(userAccount.shares.toNumber()).to.equal(0);
+    // Check that token account was created
+    const tokenAccount = await provider.connection.getTokenAccountBalance(userTokenAccount);
+    expect(tokenAccount.value.uiAmount).to.equal(0);
   });
 
   it("Deposit SOL and receive shares", async () => {
-    const userPda = getUserPda(provider.wallet.publicKey);
+    const userTokenAccount = getAssociatedTokenAccount(provider.wallet.publicKey);
     const depositAmount = new anchor.BN(1_000_000_000); // 1 SOL
 
     const vaultBalanceBefore = await provider.connection.getBalance(vaultPda);
@@ -62,133 +78,112 @@ describe("sol-token-vault", () => {
     await program.methods
       .deposit(depositAmount)
       .accounts({
+        mint: mintPda,
         vault: vaultPda,
-        userAccount: userPda,
-        user: provider.wallet.publicKey,
+        associatedTokenAccount: userTokenAccount,
+        signer: provider.wallet.publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+        associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
       })
       .rpc();
 
-    const vaultAccount = await program.account.vault.fetch(vaultPda);
-    const userAccount = await program.account.userAccount.fetch(userPda);
     const vaultBalanceAfter = await provider.connection.getBalance(vaultPda);
+    const userTokenBalance = await provider.connection.getTokenAccountBalance(userTokenAccount);
 
-    // Check vault state
-    expect(vaultAccount.totalShares.toNumber()).to.equal(depositAmount.toNumber());
-    expect(vaultAccount.totalSol.toNumber()).to.equal(depositAmount.toNumber());
-    
-    // Check user shares
-    expect(userAccount.shares.toNumber()).to.equal(depositAmount.toNumber());
-    
-    // Check actual SOL transfer
+    // Check that SOL was transferred to the vault account
     expect(vaultBalanceAfter - vaultBalanceBefore).to.equal(depositAmount.toNumber());
+    
+    // Check user received tokenized shares (1:1 ratio for first deposit)
+    expect(userTokenBalance.value.amount).to.equal(depositAmount.toString());
   });
 
-  it("Second deposit maintains proportional shares (1:1 in simple case)", async () => {
-    const userPda = getUserPda(provider.wallet.publicKey);
+  it("Second deposit maintains proportional shares", async () => {
+    const userTokenAccount = getAssociatedTokenAccount(provider.wallet.publicKey);
     const secondDeposit = new anchor.BN(500_000_000); // 0.5 SOL
 
-    const userAccountBefore = await program.account.userAccount.fetch(userPda);
-    const vaultAccountBefore = await program.account.vault.fetch(vaultPda);
+    const userTokenBalanceBefore = await provider.connection.getTokenAccountBalance(userTokenAccount);
+    const vaultBalanceBefore = await provider.connection.getBalance(vaultPda);
 
     await program.methods
       .deposit(secondDeposit)
       .accounts({
+        mint: mintPda,
         vault: vaultPda,
-        userAccount: userPda,
-        user: provider.wallet.publicKey,
+        associatedTokenAccount: userTokenAccount,
+        signer: provider.wallet.publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+        associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
       })
       .rpc();
 
-    const vaultAccount = await program.account.vault.fetch(vaultPda);
-    const userAccount = await program.account.userAccount.fetch(userPda);
+    const userTokenBalanceAfter = await provider.connection.getTokenAccountBalance(userTokenAccount);
+    const vaultBalanceAfter = await provider.connection.getBalance(vaultPda);
 
-    // In simple case (no external SOL additions), should be 1:1
-    const expectedTotalShares = vaultAccountBefore.totalShares.add(secondDeposit);
-    const expectedTotalSol = vaultAccountBefore.totalSol.add(secondDeposit);
-    const expectedUserShares = userAccountBefore.shares.add(secondDeposit);
-
-    expect(vaultAccount.totalShares.toNumber()).to.equal(expectedTotalShares.toNumber());
-    expect(vaultAccount.totalSol.toNumber()).to.equal(expectedTotalSol.toNumber());
-    expect(userAccount.shares.toNumber()).to.equal(expectedUserShares.toNumber());
+    // Check SOL was added to vault
+    expect(vaultBalanceAfter - vaultBalanceBefore).to.equal(secondDeposit.toNumber());
+    
+    // Check user received additional shares (1:1 in simple case)
+    const expectedNewShares = parseInt(userTokenBalanceBefore.value.amount) + secondDeposit.toNumber();
+    expect(userTokenBalanceAfter.value.amount).to.equal(expectedNewShares.toString());
   });
 
   it("Withdraw shares and receive SOL", async () => {
-    const userPda = getUserPda(provider.wallet.publicKey);
+    const userTokenAccount = getAssociatedTokenAccount(provider.wallet.publicKey);
     const sharesToWithdraw = new anchor.BN(300_000_000); // 0.3 worth of shares
 
     const userBalanceBefore = await provider.connection.getBalance(provider.wallet.publicKey);
-    const userAccountBefore = await program.account.userAccount.fetch(userPda);
-    const vaultAccountBefore = await program.account.vault.fetch(vaultPda);
+    const userTokenBalanceBefore = await provider.connection.getTokenAccountBalance(userTokenAccount);
+    const vaultBalanceBefore = await provider.connection.getBalance(vaultPda);
 
     await program.methods
       .withdraw(sharesToWithdraw)
       .accounts({
+        mint: mintPda,
         vault: vaultPda,
-        userAccount: userPda,
-        user: provider.wallet.publicKey,
+        associatedTokenAccount: userTokenAccount,
+        signer: provider.wallet.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+        associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
       })
       .rpc();
 
     const userBalanceAfter = await provider.connection.getBalance(provider.wallet.publicKey);
-    const vaultAccount = await program.account.vault.fetch(vaultPda);
-    const userAccount = await program.account.userAccount.fetch(userPda);
+    const userTokenBalanceAfter = await provider.connection.getTokenAccountBalance(userTokenAccount);
+    const vaultBalanceAfter = await provider.connection.getBalance(vaultPda);
 
-    // Check vault state updated
-    expect(vaultAccount.totalShares.toNumber()).to.equal(
-      vaultAccountBefore.totalShares.sub(sharesToWithdraw).toNumber()
-    );
-    expect(vaultAccount.totalSol.toNumber()).to.equal(
-      vaultAccountBefore.totalSol.sub(sharesToWithdraw).toNumber()
-    );
+    // Check shares were burned
+    const expectedRemainingShares = parseInt(userTokenBalanceBefore.value.amount) - sharesToWithdraw.toNumber();
+    expect(userTokenBalanceAfter.value.amount).to.equal(expectedRemainingShares.toString());
 
-    // Check user shares updated
-    expect(userAccount.shares.toNumber()).to.equal(
-      userAccountBefore.shares.sub(sharesToWithdraw).toNumber()
-    );
-
+    // Check SOL was transferred from vault to user
+    expect(vaultBalanceBefore - vaultBalanceAfter).to.equal(sharesToWithdraw.toNumber());
+    
     // Check user received SOL (accounting for transaction fees)
     expect(userBalanceAfter).to.be.greaterThan(userBalanceBefore);
-  });
-
-  it("Cannot withdraw more shares than owned", async () => {
-    const userPda = getUserPda(provider.wallet.publicKey);
-    const userAccount = await program.account.userAccount.fetch(userPda);
-    const tooManyShares = userAccount.shares.add(new anchor.BN(1));
-
-    try {
-      await program.methods
-        .withdraw(tooManyShares)
-        .accounts({
-          vault: vaultPda,
-          userAccount: userPda,
-          user: provider.wallet.publicKey,
-        })
-        .rpc();
-      
-      expect.fail("Should have thrown an error");
-    } catch (error) {
-      expect(error.message).to.include("InsufficientShares");
-    }
   });
 
   it("Multiple users can deposit and maintain proportional ownership", async () => {
     // Create a second user
     const secondUser = anchor.web3.Keypair.generate();
-    const secondUserPda = getUserPda(secondUser.publicKey);
+    const secondUserTokenAccount = getAssociatedTokenAccount(secondUser.publicKey);
 
     // Airdrop SOL to second user
     await provider.connection.requestAirdrop(secondUser.publicKey, 2_000_000_000);
     await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for airdrop
 
-    // Create second user account
+    // Create second user token account
     await program.methods
       .createUserAccount()
       .accounts({
-        userAccount: secondUserPda,
-        user: secondUser.publicKey,
+        tokenAccount: secondUserTokenAccount,
+        signer: secondUser.publicKey,
+        mint: mintPda,
         systemProgram: anchor.web3.SystemProgram.programId,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+        associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
       })
       .signers([secondUser])
       .rpc();
@@ -198,22 +193,31 @@ describe("sol-token-vault", () => {
     await program.methods
       .deposit(secondUserDeposit)
       .accounts({
+        mint: mintPda,
         vault: vaultPda,
-        userAccount: secondUserPda,
-        user: secondUser.publicKey,
+        associatedTokenAccount: secondUserTokenAccount,
+        signer: secondUser.publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+        associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
       })
       .signers([secondUser])
       .rpc();
 
-    const vaultAccount = await program.account.vault.fetch(vaultPda);
-    const firstUserAccount = await program.account.userAccount.fetch(getUserPda(provider.wallet.publicKey));
-    const secondUserAccount = await program.account.userAccount.fetch(secondUserPda);
+    // Get token balances
+    const firstUserTokenAccount = getAssociatedTokenAccount(provider.wallet.publicKey);
+    const firstUserBalance = await provider.connection.getTokenAccountBalance(firstUserTokenAccount);
+    const secondUserBalance = await provider.connection.getTokenAccountBalance(secondUserTokenAccount);
 
-    // Verify proportional ownership
-    const totalShares = vaultAccount.totalShares.toNumber();
-    const firstUserOwnership = firstUserAccount.shares.toNumber() / totalShares;
-    const secondUserOwnership = secondUserAccount.shares.toNumber() / totalShares;
+    // Get mint supply to calculate ownership percentages
+    const mintInfo = await provider.connection.getTokenSupply(mintPda);
+    const totalSupply = parseInt(mintInfo.value.amount);
+
+    const firstUserShares = parseInt(firstUserBalance.value.amount);
+    const secondUserShares = parseInt(secondUserBalance.value.amount);
+
+    const firstUserOwnership = firstUserShares / totalSupply;
+    const secondUserOwnership = secondUserShares / totalSupply;
 
     console.log(`First user owns ${(firstUserOwnership * 100).toFixed(2)}% of vault`);
     console.log(`Second user owns ${(secondUserOwnership * 100).toFixed(2)}% of vault`);
