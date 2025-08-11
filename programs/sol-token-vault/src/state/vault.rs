@@ -3,9 +3,12 @@ use anchor_lang::prelude::*;
 #[account]
 #[derive(InitSpace)]
 pub struct Vault {
-    pub stake_pools: [Pubkey; 1],
-    pub pool_mints: [Pubkey; 1],
-    pub allocations: [u16; 1], // basis points (10000 = 100%)
+    #[max_len(10)] // reasonable max of 10 stake pools
+    pub stake_pools: Vec<Pubkey>,
+    #[max_len(10)]
+    pub pool_mints: Vec<Pubkey>,
+    #[max_len(10)]
+    pub allocations: Vec<u16>, // basis points (10000 = 100%)
     pub total_shares_issued: u64,
     pub bump: u8,
 }

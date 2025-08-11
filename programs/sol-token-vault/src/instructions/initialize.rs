@@ -1,5 +1,6 @@
 #![allow(unexpected_cfgs)]
 use anchor_lang::prelude::*;
+use anchor_lang::error::ErrorCode;
 use anchor_spl::token_interface::{
     Mint, TokenInterface, TokenAccount,
 };
@@ -7,6 +8,7 @@ use anchor_spl::associated_token::AssociatedToken;
 use crate::state::*;
 
 #[derive(Accounts)]
+#[instruction(allocations: Vec<u16>)]
 pub struct Initialize<'info> {
     #[account(
         init,
@@ -27,50 +29,82 @@ pub struct Initialize<'info> {
     )]
     pub vault: Account<'info, Vault>,
     
-    // Pool mints from each stake pool
-    pub pool_mint_0: InterfaceAccount<'info, Mint>,
-    
-    // ATAs to create for holding pool tokens
-    #[account(
-        init,
-        payer = signer,
-        associated_token::mint = pool_mint_0,
-        associated_token::authority = vault,
-        associated_token::token_program = token_program,
-    )]
-    pub vault_pool_token_account_0: InterfaceAccount<'info, TokenAccount>,
-    
     #[account(mut)]
     pub signer: Signer<'info>,
     pub system_program: Program<'info, System>,
     pub token_program: Interface<'info, TokenInterface>,
     pub associated_token_program: Program<'info, AssociatedToken>,
+    // Remaining accounts: [stake_pool_0, pool_mint_0, ata_0, stake_pool_1, pool_mint_1, ata_1, ...]
 }
 
-pub fn handler(ctx: Context<Initialize>) -> Result<()> {
+pub fn handler<'c: 'info, 'info>(
+    ctx: Context<'_, '_, 'c, 'info, Initialize<'info>>, allocations: Vec<u16>
+) -> Result<()> {
     let vault = &mut ctx.accounts.vault;
     
-    // Hardcoded vetted stake pools
-    let stake_pools = [
-        Pubkey::from_str_const("SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy"),
-    ];
+    // Calculate total number of pools
+    let total_pools = ctx.remaining_accounts.len() / 3;
     
-    let pool_mints = [
-        ctx.accounts.pool_mint_0.key(),
-    ];
+    // Validate we have the right number of accounts and allocations
+    require!(
+        ctx.remaining_accounts.len() % 3 == 0,
+        ErrorCode::AccountNotEnoughKeys
+    );
+    require!(
+        allocations.len() == total_pools,
+        ErrorCode::AccountNotEnoughKeys
+    );
+    require!(
+        total_pools >= 1,
+        ErrorCode::AccountNotEnoughKeys
+    );
     
-    // Equal allocation across pools
-    let allocations = [10000u16];
+    // Validate allocations sum to 100%
+    let total_allocation: u32 = allocations.iter().map(|&x| x as u32).sum();
+    require!(
+        total_allocation == 10000,
+        ErrorCode::AccountNotEnoughKeys
+    );
     
+    // Build vectors from ALL remaining accounts
+    let mut stake_pools = Vec::new();
+    let mut pool_mints = Vec::new();
+    
+    // Parse remaining accounts (triplets: stake_pool, pool_mint, ata, ...)
+    for i in (0..ctx.remaining_accounts.len()).step_by(3) {
+        let stake_pool = &ctx.remaining_accounts[i];
+        let pool_mint = &ctx.remaining_accounts[i + 1];
+        let ata_account = &ctx.remaining_accounts[i + 2];
+        
+        stake_pools.push(stake_pool.key());
+        pool_mints.push(pool_mint.key());
+        
+        // Create ATA for this pool
+        anchor_spl::associated_token::create(
+            CpiContext::new(
+                ctx.accounts.associated_token_program.to_account_info(),
+                anchor_spl::associated_token::Create {
+                    payer: ctx.accounts.signer.to_account_info(),
+                    associated_token: ata_account.to_account_info(),
+                    authority: vault.to_account_info(),
+                    mint: pool_mint.to_account_info(),
+                    system_program: ctx.accounts.system_program.to_account_info(),
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                },
+            ),
+        )?;
+        
+        msg!("Created ATA for pool {}: {}", i/3, ata_account.key());
+    }
+    
+    // Initialize vault state
     vault.stake_pools = stake_pools;
     vault.pool_mints = pool_mints;
     vault.allocations = allocations;
     vault.total_shares_issued = 0;
     vault.bump = ctx.bumps.vault;
     
-    msg!("Vault initialized with {} stake pools", stake_pools.len());
-    msg!("Pool token accounts: {}", 
-         ctx.accounts.vault_pool_token_account_0.key(),
-    );
+    msg!("Vault initialized with {} stake pools", total_pools);
+    
     Ok(())
 }

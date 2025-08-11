@@ -11,19 +11,21 @@ declare_id!("3uUWcoJawNHKnsann7Vrw9LzVhMxgnNUuDeXYuZikYYT");
 pub mod sol_token_vault {
     use super::*;
 
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        initialize::handler(ctx)
+    pub fn initialize<'c: 'info, 'info>(
+        ctx: Context<'_, '_, 'c, 'info, Initialize<'info>>, allocations: Vec<u16>
+    ) -> Result<()> {
+        initialize::handler(ctx, allocations)
     }
 
     pub fn create_user_account(ctx: Context<CreateUserAccount>) -> Result<()> {
         create_user_account::handler(ctx)
     }
 
-    pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
+    pub fn deposit<'c: 'info, 'info>(ctx: Context<'_, '_, 'c,'info, Deposit<'info>>, amount: u64) -> Result<()> {
         deposit::handler(ctx, amount)
     }
 
-    pub fn withdraw(ctx: Context<Withdraw>, shares: u64) -> Result<()> {
+    pub fn withdraw<'c: 'info, 'info>(ctx: Context<'_, '_, 'c, 'info, Withdraw<'info>>, shares: u64) -> Result<()> {
         withdraw::handler(ctx, shares)
     }
 }
