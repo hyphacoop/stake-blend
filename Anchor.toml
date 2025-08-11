@@ -17,3 +17,20 @@ wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+
+[test]
+startup_wait = 5000
+shutdown_wait = 2000
+upgradeable = false
+
+# Test validator configuration
+[test.validator]
+url = "https://api.mainnet-beta.solana.com"
+clone = [
+    { address = "stk9ApL5HeVAwPLr3TLhDXdZS8ptVu7zp6ov8HFDuMi" }, # Stake pool
+    { address = "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1" },  # bSOL mint
+    { address = "rsrxDvYUXjH1RQj2Ke36LNZEVqGztATxFkqNukERqFT" }, # Reserve stake account
+    { address = "6WecYymEARvjG5ZyqkrVQ6YkhPfujNzWpSPwNKXHCbV2" }, # Withdraw authority
+    { address = "Dpo148tVGewDPyh2FkGV18gouWctbdX2fHJopJGe9xv1" }, # Manager fee account
+    { address = "SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy" }, # Stake pool program
+]
