@@ -1309,16 +1309,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
-name = "sol-token-vault"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "spl-associated-token-account 7.0.0",
- "spl-stake-pool",
-]
-
-[[package]]
 name = "solana-account"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2934,6 +2924,16 @@ dependencies = [
  "spl-discriminator",
  "spl-pod",
  "thiserror 2.0.12",
+]
+
+[[package]]
+name = "stake-blend"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "spl-associated-token-account 7.0.0",
+ "spl-stake-pool",
 ]
 
 [[package]]

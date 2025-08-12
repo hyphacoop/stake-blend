@@ -6,13 +6,17 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-sol_token_vault = "3uUWcoJawNHKnsann7Vrw9LzVhMxgnNUuDeXYuZikYYT"
+stake_blend = "3uUWcoJawNHKnsann7Vrw9LzVhMxgnNUuDeXYuZikYYT"
+
+[programs.testnet]
+stake_blend = "3uUWcoJawNHKnsann7Vrw9LzVhMxgnNUuDeXYuZikYYT"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
 cluster = "localnet"
+# cluster = "testnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

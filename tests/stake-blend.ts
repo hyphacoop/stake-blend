@@ -1,15 +1,15 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { SolTokenVault } from "../target/types/sol_token_vault";
+import { StakeBlend } from "../target/types/stake_blend";
 import { expect } from "chai";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { StakePoolLayout } from '@solana/spl-stake-pool';
 
-describe("sol-token-vault", () => {
+describe("stake-blend", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
-  const program = anchor.workspace.SolTokenVault as Program<SolTokenVault>;
+  const program = anchor.workspace.StakeBlend as Program<StakeBlend>;
   
   // Pool configuration - easy to expand later
   const pools = [

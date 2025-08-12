@@ -1,12 +1,12 @@
 [package]
-name = "sol-token-vault"
+name = "stake-blend"
 version = "0.1.0"
 description = "Created with Anchor"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "sol_token_vault"
+name = "stake_blend"
 
 [features]
 default = []
