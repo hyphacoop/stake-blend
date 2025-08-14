@@ -2,8 +2,10 @@
 use anchor_lang::prelude::*;
 use anchor_lang::error::ErrorCode;
 use anchor_spl::token_interface;
+use anchor_spl::stake::Stake;
 use anchor_spl::token_interface::spl_token_metadata_interface::borsh::BorshDeserialize;
 use spl_stake_pool::state::StakePool;
+use crate::instructions::dependencies;
 use crate::state::*;
 
 #[derive(Accounts)]
@@ -28,13 +30,11 @@ pub struct Withdraw<'info> {
     pub system_program: Program<'info, System>,
     pub token_program: Interface<'info, token_interface::TokenInterface>,
     /// CHECK: Stake pool program
-    pub stake_pool_program: UncheckedAccount<'info>,
-    /// CHECK: Clock sysvar
-    pub clock: UncheckedAccount<'info>,
+    pub stake_pool_program: Program<'info, dependencies::StakePool>,
+    pub clock: Sysvar<'info, Clock>,
     /// CHECK: Stake history sysvar  
     pub stake_history: UncheckedAccount<'info>,
-    /// CHECK: Stake program
-    pub stake_program: UncheckedAccount<'info>,
+    pub stake_program: Program<'info, Stake>,
     // Remaining accounts: [stake_pool_0, withdraw_authority_0, reserve_stake_0, pool_mint_0, vault_pool_token_account_0, manager_fee_0, ...]
 }
 

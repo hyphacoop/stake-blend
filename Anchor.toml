@@ -6,17 +6,20 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-stake_blend = "3uUWcoJawNHKnsann7Vrw9LzVhMxgnNUuDeXYuZikYYT"
+stake_blend = "Cw3KHMs521Ge3d4xETA6wGwqVNnY7z2xwz6Dtb2Fkp6t"
 
-[programs.testnet]
-stake_blend = "3uUWcoJawNHKnsann7Vrw9LzVhMxgnNUuDeXYuZikYYT"
+[programs.devnet]
+stake_blend = "Cw3KHMs521Ge3d4xETA6wGwqVNnY7z2xwz6Dtb2Fkp6t"
+
+[programs.mainnet]
+stake_blend = "Cw3KHMs521Ge3d4xETA6wGwqVNnY7z2xwz6Dtb2Fkp6t"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
-# cluster = "testnet"
+cluster = "mainnet"
+# cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

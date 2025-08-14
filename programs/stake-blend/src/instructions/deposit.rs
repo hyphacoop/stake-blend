@@ -3,6 +3,9 @@ use anchor_lang::prelude::*;
 use anchor_lang::error::ErrorCode;
 use anchor_spl::token_interface;
 use crate::state::*;
+use anchor_spl::token_interface::spl_token_metadata_interface::borsh::BorshDeserialize;
+use spl_stake_pool::state::StakePool;
+use crate::instructions::dependencies;
 
 #[derive(Accounts)]
 pub struct Deposit<'info> {
@@ -25,8 +28,7 @@ pub struct Deposit<'info> {
 
     pub system_program: Program<'info, System>,
     pub token_program: Interface<'info, token_interface::TokenInterface>,
-    /// CHECK: Stake pool program
-    pub stake_pool_program: UncheckedAccount<'info>,
+    pub stake_pool_program: Program<'info, dependencies::StakePool>,
     // Remaining accounts: [stake_pool_0, withdraw_authority_0, reserve_stake_0, pool_mint_0, vault_pool_token_account_0, manager_fee_0, referrer_fee_0, ...]
 }
 
@@ -49,7 +51,50 @@ pub fn handler<'c: 'info, 'info>(
         ErrorCode::AccountNotEnoughKeys
     );
 
-    // Process ALL pools from remaining accounts
+    // Step 1: Calculate current vault value before deposit
+    let mut total_vault_value = 0u64;
+    for i in 0..total_pools {
+            let base_idx = i * 7;
+            let stake_pool = &ctx.remaining_accounts[base_idx];
+        let vault_pool_token_account = &ctx.remaining_accounts[base_idx + 4];
+
+        // Get current pool token balance
+        let vault_pool_balance = {
+            let account_data = vault_pool_token_account.try_borrow_data()?;
+            let token_account = anchor_spl::token::TokenAccount::try_deserialize(&mut account_data.as_ref())?;
+            token_account.amount
+    };
+
+        if vault_pool_balance > 0 {
+            // Deserialize the stake pool to get current value
+            let stake_pool_data = stake_pool.try_borrow_data()?;
+            let stake_pool = StakePool::deserialize(&mut stake_pool_data.as_ref())
+                .map_err(|_| ErrorCode::AccountDidNotDeserialize)?;
+
+            // Calculate SOL value of our pool tokens
+            let pool_sol_value = stake_pool.calc_lamports_withdraw_amount(vault_pool_balance)
+                .ok_or(ErrorCode::InvalidNumericConversion)?;
+
+            total_vault_value = total_vault_value.checked_add(pool_sol_value)
+                .ok_or(ErrorCode::InvalidNumericConversion)?;
+        }
+    }
+
+    // Step 2: Calculate shares to mint based on current share price
+    let shares_to_mint = if vault.total_shares_issued == 0 {
+        // First deposit: mint 1:1
+        amount
+    } else {
+        // Calculate current share price: total_vault_value / total_shares_issued
+        // Then: shares_to_mint = amount / share_price = amount * total_shares_issued / total_vault_value
+        (amount as u128)
+            .checked_mul(vault.total_shares_issued as u128)
+            .ok_or(ErrorCode::InvalidNumericConversion)?
+            .checked_div(total_vault_value as u128)
+            .ok_or(ErrorCode::InvalidNumericConversion)? as u64
+    };
+
+    // Step 3: Process deposits to ALL pools
     for i in 0..total_pools {
         let pool_amount = (amount as u128 * vault.allocations[i] as u128 / 10000) as u64;
         
@@ -96,10 +141,7 @@ pub fn handler<'c: 'info, 'info>(
         }
     }
 
-    // For now, mint 1:1 vault shares
-    let shares_to_mint = amount;
-    
-    // Mint shares to user
+    // Step 4: Mint proportional shares to user
     let cpi_accounts = token_interface::MintTo {
         mint: ctx.accounts.mint.to_account_info(),
         to: ctx.accounts.user_vault_token_account.to_account_info(),

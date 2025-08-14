@@ -7,3 +7,5 @@ pub use initialize::*;
 pub use create_user_account::*;
 pub use deposit::*;
 pub use withdraw::*;
+
+mod dependencies;

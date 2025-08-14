@@ -13,6 +13,7 @@ describe("stake-blend", () => {
   
   // Pool configuration - easy to expand later
   const pools = [
+    // Mainnet / Local
     {
       // BSol
       stakePool: new anchor.web3.PublicKey("stk9ApL5HeVAwPLr3TLhDXdZS8ptVu7zp6ov8HFDuMi"),
@@ -27,12 +28,13 @@ describe("stake-blend", () => {
       poolMint: new anchor.web3.PublicKey("SAVEDpx3nFNdzG3ymJfShYnrBuYy7LtQEABZQ3qtTFt"),
       reserve: new anchor.web3.PublicKey("FL2AsvZPTW33QdmBgQx15ZdtaSbmuwY3oBCJMj63u9W1"),
       withdrawAuthority: new anchor.web3.PublicKey("9yWcz4S27nXKpsVmWqaimphCUnFo441JUvwkzmvRWys3"),
-      // withdrawAuthority: new anchor.web3.PublicKey("6WecYymEARvjG5ZyqkrVQ6YkhPfujNzWpSPwNKXHCbV2"),
       managerFee: new anchor.web3.PublicKey("5VyLWq6nGg8mkAsHUwn6KqnaTni6hFZHb6dGiV7dCtGz"),
-    }
+    },
   ];
 
   const expectedAllocations = [70_00, 30_00]; // 70% BSol, 30% haSOL
+
+  // Mainnet / Local
   const STAKE_POOL_PROGRAM = new anchor.web3.PublicKey("SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy");
 
   // PDAs
@@ -108,7 +110,7 @@ describe("stake-blend", () => {
     return { poolData, totalValue: totalValue, actualAllocations };
   }
 
-  it("Initialize vault", async () => {
+  it("Initializes the vault", async () => {
     // Build remaining accounts: 3 per pool (stake_pool, pool_mint, ata)
     const remainingAccounts = [];
     for (let i = 0; i < pools.length; i++) {
@@ -125,23 +127,24 @@ describe("stake-blend", () => {
     );
     }
 
-    await program.methods
-      .initialize(expectedAllocations)
-      .accounts({
-        mint: mintPda,
-        vault: vaultPda,
-        signer: provider.wallet.publicKey,
-        systemProgram: anchor.web3.SystemProgram.programId,
-        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
-        associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
-      })
-      .remainingAccounts(remainingAccounts)
-      .rpc();
+      await program.methods
+        .initialize(expectedAllocations)
+        .accounts({
+          mint: mintPda,
+          vault: vaultPda,
+          signer: provider.wallet.publicKey,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+          // tokenProgram: TOKEN_2022_PROGRAM_ID,
+          associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
+        })
+        .remainingAccounts(remainingAccounts)
+        .rpc();
 
     console.log("Vault initialized");
   });
 
-  it("Create user account", async () => {
+  it("Creates a user account", async () => {
     const userTokenAccount = getAssociatedTokenAddressSync(
       mintPda,
       provider.wallet.publicKey

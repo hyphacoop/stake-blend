@@ -5,7 +5,8 @@ pub mod instructions;
 pub mod state;
 use instructions::*;
 
-declare_id!("3uUWcoJawNHKnsann7Vrw9LzVhMxgnNUuDeXYuZikYYT");
+// declare_id!("3uUWcoJawNHKnsann7Vrw9LzVhMxgnNUuDeXYuZikYYT");
+declare_id!("Cw3KHMs521Ge3d4xETA6wGwqVNnY7z2xwz6Dtb2Fkp6t");
 
 #[program]
 pub mod stake_blend {

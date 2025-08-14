@@ -2,7 +2,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::error::ErrorCode;
 use anchor_spl::token_interface::{
-    Mint, TokenInterface, TokenAccount,
+    Mint, TokenInterface
 };
 use anchor_spl::associated_token::AssociatedToken;
 use crate::state::*;
@@ -58,12 +58,11 @@ pub fn handler<'c: 'info, 'info>(
         total_pools >= 1,
         ErrorCode::AccountNotEnoughKeys
     );
-    
     // Validate allocations sum to 100%
     let total_allocation: u32 = allocations.iter().map(|&x| x as u32).sum();
     require!(
         total_allocation == 10000,
-        ErrorCode::AccountNotEnoughKeys
+        ErrorCode::InvalidNumericConversion
     );
     
     // Build vectors from ALL remaining accounts
@@ -75,10 +74,10 @@ pub fn handler<'c: 'info, 'info>(
         let stake_pool = &ctx.remaining_accounts[i];
         let pool_mint = &ctx.remaining_accounts[i + 1];
         let ata_account = &ctx.remaining_accounts[i + 2];
-        
+
         stake_pools.push(stake_pool.key());
         pool_mints.push(pool_mint.key());
-        
+
         // Create ATA for this pool
         anchor_spl::associated_token::create(
             CpiContext::new(
@@ -93,18 +92,18 @@ pub fn handler<'c: 'info, 'info>(
                 },
             ),
         )?;
-        
+ 
         msg!("Created ATA for pool {}: {}", i/3, ata_account.key());
     }
-    
+
     // Initialize vault state
     vault.stake_pools = stake_pools;
     vault.pool_mints = pool_mints;
     vault.allocations = allocations;
     vault.total_shares_issued = 0;
     vault.bump = ctx.bumps.vault;
-    
+
     msg!("Vault initialized with {} stake pools", total_pools);
-    
+
     Ok(())
 }
