@@ -131,7 +131,7 @@ pub fn handler<'c: 'info, 'info>(
 
         // Calculate how much SOL value to withdraw from this pool
         let pool_withdrawal_value = (total_withdrawal_value as u128)
-            .checked_mul(vault.allocations[i] as u128)
+            .checked_mul(pool_values[i] as u128)
             .ok_or(ErrorCode::InvalidNumericConversion)?
             .checked_div(10000u128)
             .ok_or(ErrorCode::InvalidNumericConversion)? as u64;
