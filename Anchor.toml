@@ -41,7 +41,7 @@ clone = [
     { address = "6WecYymEARvjG5ZyqkrVQ6YkhPfujNzWpSPwNKXHCbV2" }, # Withdraw authority
     { address = "Dpo148tVGewDPyh2FkGV18gouWctbdX2fHJopJGe9xv1" }, # Manager fee account
 
-    # haSOL stake pool accts
+    # saveSOL stake pool accts
     { address = "SAVEY1fVMBeRVo9V9rgEz8ENTvHreftd3QgpAKBDFV4" }, # Stake pool
     { address = "SAVEDpx3nFNdzG3ymJfShYnrBuYy7LtQEABZQ3qtTFt" },  # mint
     { address = "FL2AsvZPTW33QdmBgQx15ZdtaSbmuwY3oBCJMj63u9W1" }, # Reserve stake account

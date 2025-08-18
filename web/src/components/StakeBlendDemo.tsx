@@ -159,18 +159,18 @@ export default function StakeBlendDemo() {
         <h2>Wallet Info</h2>
         <WalletMultiButton />
         <p><strong>SOL Balance:</strong> {balances.sol.toFixed(4)} SOL</p>
-        <p><strong>Vault Shares:</strong> {balances.vaultShares.toFixed(6)}</p>
+        <p><strong>Vault Shares (yes, we messed the decimals up 😭):</strong> {balances.vaultShares.toFixed(6)}</p>
         <button onClick={loadBalances} disabled={loading}>
           🔄 Refresh Balances
         </button>
       </div>
 
       <div className="card">
-        <h2>Admin Functions</h2>
+        <h2>Setup Functions</h2>
         <p><em>Only needed once for initial setup</em></p>
-        <button onClick={handleInitialize} disabled={loading}>
+        {/* <button onClick={handleInitialize} disabled={loading}>
           Initialize Vault
-        </button>
+        </button> */}
         <button onClick={handleCreateAccount} disabled={loading}>
           Create User Account
         </button>
@@ -178,7 +178,7 @@ export default function StakeBlendDemo() {
 
       <div className="card">
         <h2>Deposit SOL</h2>
-        <p>Get diversified LST exposure (70% BSol + 30% haSOL)</p>
+        <p>Get diversified LST exposure (70% BSol + 30% saveSOL)</p>
         <input
           type="number"
           value={depositAmount}

@@ -24,7 +24,7 @@ export default function App() {
         <WalletModalProvider>
           <div>
             <h1>🥩 Stake Blend Demo</h1>
-            <p>Deposit SOL to get diversified liquid staking exposure (70% BSol + 30% haSOL)</p>
+            <p>Deposit SOL to get diversified liquid staking exposure (70% BSol + 30% saveSOL)</p>
             <StakeBlendDemo />
           </div>
         </WalletModalProvider>

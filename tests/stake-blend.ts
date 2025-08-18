@@ -23,7 +23,7 @@ describe("stake-blend", () => {
       managerFee: new anchor.web3.PublicKey("Dpo148tVGewDPyh2FkGV18gouWctbdX2fHJopJGe9xv1"),
     },
     {
-      // haSOL
+      // saveSOL
       stakePool: new anchor.web3.PublicKey("SAVEY1fVMBeRVo9V9rgEz8ENTvHreftd3QgpAKBDFV4"),
       poolMint: new anchor.web3.PublicKey("SAVEDpx3nFNdzG3ymJfShYnrBuYy7LtQEABZQ3qtTFt"),
       reserve: new anchor.web3.PublicKey("FL2AsvZPTW33QdmBgQx15ZdtaSbmuwY3oBCJMj63u9W1"),
@@ -32,7 +32,7 @@ describe("stake-blend", () => {
     },
   ];
 
-  const expectedAllocations = [70_00, 30_00]; // 70% BSol, 30% haSOL
+  const expectedAllocations = [70_00, 30_00]; // 70% BSol, 30% saveSOL
 
   // Mainnet / Local
   const STAKE_POOL_PROGRAM = new anchor.web3.PublicKey("SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy");

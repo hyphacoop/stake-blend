@@ -13,7 +13,7 @@ export const POOLS = [
     managerFee: new PublicKey("Dpo148tVGewDPyh2FkGV18gouWctbdX2fHJopJGe9xv1"),
   },
   {
-    name: "haSOL", 
+    name: "saveSOL", 
     stakePool: new PublicKey("SAVEY1fVMBeRVo9V9rgEz8ENTvHreftd3QgpAKBDFV4"),
     poolMint: new PublicKey("SAVEDpx3nFNdzG3ymJfShYnrBuYy7LtQEABZQ3qtTFt"),
     reserve: new PublicKey("FL2AsvZPTW33QdmBgQx15ZdtaSbmuwY3oBCJMj63u9W1"),
@@ -22,7 +22,7 @@ export const POOLS = [
   }
 ];
 
-export const ALLOCATIONS = [7000, 3000]; // 70% BSol, 30% haSOL
+export const ALLOCATIONS = [7000, 3000]; // 70% BSol, 30% saveSOL
 
 // PDAs
 export const [MINT_PDA] = PublicKey.findProgramAddressSync(
