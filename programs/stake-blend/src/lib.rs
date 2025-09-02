@@ -37,3 +37,9 @@ pub mod stake_blend {
         withdraw::handler(ctx, shares)
     }
 }
+
+#[error_code]
+pub enum StakeBlendError {
+    #[msg("Invalid account data provided")]
+    InvalidAccountData,
+}

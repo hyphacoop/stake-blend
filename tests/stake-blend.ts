@@ -265,4 +265,219 @@ describe("stake-blend", () => {
     // Validate VALUE distribution after withdrawal
     await validateDistribution("withdraw");
   });
+
+  it("Should fail when wrong stake pool accounts are provided", async () => {
+    const userTokenAccount = getAssociatedTokenAddressSync(
+      mintPda,
+      provider.wallet.publicKey
+    );
+
+    const depositAmount = new anchor.BN(1_000_000_000); // 1 SOL
+
+    // Build remaining accounts with WRONG stake pool (swap the order)
+    const remainingAccounts = [];
+    for (let i = 0; i < pools.length; i++) {
+      const vaultPoolTokenAccount = getAssociatedTokenAddressSync(
+        pools[i].poolMint,
+        vaultPda,
+        true
+      );
+
+      // Use wrong stake pool - swap pools[0] and pools[1]
+      const wrongPoolIndex = i === 0 ? 1 : 0;
+      
+      remainingAccounts.push(
+        { pubkey: pools[wrongPoolIndex].stakePool, isSigner: false, isWritable: true }, // WRONG!
+        { pubkey: pools[i].withdrawAuthority, isSigner: false, isWritable: false },
+        { pubkey: pools[i].reserve, isSigner: false, isWritable: true },
+        { pubkey: pools[i].poolMint, isSigner: false, isWritable: true },
+        { pubkey: vaultPoolTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: pools[i].managerFee, isSigner: false, isWritable: true },
+        { pubkey: pools[i].managerFee, isSigner: false, isWritable: true } // referrer fee
+      );
+    }
+
+    try {
+      await program.methods
+        .deposit(depositAmount)
+        .accounts({
+          mint: mintPda,
+          vault: vaultPda,
+          userVaultTokenAccount: userTokenAccount,
+          signer: provider.wallet.publicKey,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+          stakePoolProgram: STAKE_POOL_PROGRAM,
+        })
+        .remainingAccounts(remainingAccounts)
+        .rpc();
+      
+      // If we get here, the test should fail because validation should have caught the wrong accounts
+      expect.fail("Expected transaction to fail due to wrong stake pool accounts");
+    } catch (error) {
+      // This should happen - the transaction should fail
+      console.log("✅ Transaction correctly failed with wrong accounts:", error.message);
+      // Now it should fail at our validation level with InvalidAccountData
+      expect(error.message).to.include("InvalidAccountData"); 
+    }
+  });
+
+  it("Should fail when wrong withdraw authority is provided", async () => {
+    const userTokenAccount = getAssociatedTokenAddressSync(
+      mintPda,
+      provider.wallet.publicKey
+    );
+
+    const depositAmount = new anchor.BN(1_000_000_000); // 1 SOL
+
+    // Build remaining accounts with WRONG withdraw authority
+    const remainingAccounts = [];
+    for (let i = 0; i < pools.length; i++) {
+      const vaultPoolTokenAccount = getAssociatedTokenAddressSync(
+        pools[i].poolMint,
+        vaultPda,
+        true
+      );
+
+      // Use wrong withdraw authority - swap them
+      const wrongPoolIndex = i === 0 ? 1 : 0;
+      
+      remainingAccounts.push(
+        { pubkey: pools[i].stakePool, isSigner: false, isWritable: true },
+        { pubkey: pools[wrongPoolIndex].withdrawAuthority, isSigner: false, isWritable: false }, // WRONG!
+        { pubkey: pools[i].reserve, isSigner: false, isWritable: true },
+        { pubkey: pools[i].poolMint, isSigner: false, isWritable: true },
+        { pubkey: vaultPoolTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: pools[i].managerFee, isSigner: false, isWritable: true },
+        { pubkey: pools[i].managerFee, isSigner: false, isWritable: true } // referrer fee
+      );
+    }
+
+    try {
+      await program.methods
+        .deposit(depositAmount)
+        .accounts({
+          mint: mintPda,
+          vault: vaultPda,
+          userVaultTokenAccount: userTokenAccount,
+          signer: provider.wallet.publicKey,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+          stakePoolProgram: STAKE_POOL_PROGRAM,
+        })
+        .remainingAccounts(remainingAccounts)
+        .rpc();
+      
+      expect.fail("Expected transaction to fail due to wrong withdraw authority");
+    } catch (error) {
+      console.log("✅ Transaction correctly failed with wrong withdraw authority:", error.message);
+      expect(error.message).to.include("InvalidAccountData");
+    }
+  });
+
+  it("Should fail when wrong reserve stake is provided", async () => {
+    const userTokenAccount = getAssociatedTokenAddressSync(
+      mintPda,
+      provider.wallet.publicKey
+    );
+
+    const depositAmount = new anchor.BN(1_000_000_000); // 1 SOL
+
+    // Build remaining accounts with WRONG reserve stake
+    const remainingAccounts = [];
+    for (let i = 0; i < pools.length; i++) {
+      const vaultPoolTokenAccount = getAssociatedTokenAddressSync(
+        pools[i].poolMint,
+        vaultPda,
+        true
+      );
+
+      // Use wrong reserve stake - swap them
+      const wrongPoolIndex = i === 0 ? 1 : 0;
+      
+      remainingAccounts.push(
+        { pubkey: pools[i].stakePool, isSigner: false, isWritable: true },
+        { pubkey: pools[i].withdrawAuthority, isSigner: false, isWritable: false },
+        { pubkey: pools[wrongPoolIndex].reserve, isSigner: false, isWritable: true }, // WRONG!
+        { pubkey: pools[i].poolMint, isSigner: false, isWritable: true },
+        { pubkey: vaultPoolTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: pools[i].managerFee, isSigner: false, isWritable: true },
+        { pubkey: pools[i].managerFee, isSigner: false, isWritable: true } // referrer fee
+      );
+    }
+
+    try {
+      await program.methods
+        .deposit(depositAmount)
+        .accounts({
+          mint: mintPda,
+          vault: vaultPda,
+          userVaultTokenAccount: userTokenAccount,
+          signer: provider.wallet.publicKey,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+          stakePoolProgram: STAKE_POOL_PROGRAM,
+        })
+        .remainingAccounts(remainingAccounts)
+        .rpc();
+      
+      expect.fail("Expected transaction to fail due to wrong reserve stake");
+    } catch (error) {
+      console.log("✅ Transaction correctly failed with wrong reserve stake:", error.message);
+      expect(error.message).to.include("InvalidAccountData");
+    }
+  });
+
+  it("Should fail when wrong manager fee account is provided", async () => {
+    const userTokenAccount = getAssociatedTokenAddressSync(
+      mintPda,
+      provider.wallet.publicKey
+    );
+
+    const depositAmount = new anchor.BN(1_000_000_000); // 1 SOL
+
+    // Build remaining accounts with WRONG manager fee account
+    const remainingAccounts = [];
+    for (let i = 0; i < pools.length; i++) {
+      const vaultPoolTokenAccount = getAssociatedTokenAddressSync(
+        pools[i].poolMint,
+        vaultPda,
+        true
+      );
+
+      // Use wrong manager fee account - swap them
+      const wrongPoolIndex = i === 0 ? 1 : 0;
+      
+      remainingAccounts.push(
+        { pubkey: pools[i].stakePool, isSigner: false, isWritable: true },
+        { pubkey: pools[i].withdrawAuthority, isSigner: false, isWritable: false },
+        { pubkey: pools[i].reserve, isSigner: false, isWritable: true },
+        { pubkey: pools[i].poolMint, isSigner: false, isWritable: true },
+        { pubkey: vaultPoolTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: pools[wrongPoolIndex].managerFee, isSigner: false, isWritable: true }, // WRONG!
+        { pubkey: pools[i].managerFee, isSigner: false, isWritable: true } // referrer fee
+      );
+    }
+
+    try {
+      await program.methods
+        .deposit(depositAmount)
+        .accounts({
+          mint: mintPda,
+          vault: vaultPda,
+          userVaultTokenAccount: userTokenAccount,
+          signer: provider.wallet.publicKey,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+          stakePoolProgram: STAKE_POOL_PROGRAM,
+        })
+        .remainingAccounts(remainingAccounts)
+        .rpc();
+      
+      expect.fail("Expected transaction to fail due to wrong manager fee account");
+    } catch (error) {
+      console.log("✅ Transaction correctly failed with wrong manager fee account:", error.message);
+      expect(error.message).to.include("InvalidAccountData");
+    }
+  });
 });

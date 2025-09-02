@@ -7,6 +7,7 @@ use anchor_spl::token_interface::spl_token_metadata_interface::borsh::BorshDeser
 use spl_stake_pool::state::StakePool;
 use crate::instructions::dependencies;
 use crate::state::*;
+use crate::StakeBlendError;
 
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
@@ -29,11 +30,9 @@ pub struct Withdraw<'info> {
 
     pub system_program: Program<'info, System>,
     pub token_program: Interface<'info, token_interface::TokenInterface>,
-    /// CHECK: Stake pool program
     pub stake_pool_program: Program<'info, dependencies::StakePool>,
     pub clock: Sysvar<'info, Clock>,
-    /// CHECK: Stake history sysvar  
-    pub stake_history: UncheckedAccount<'info>,
+    pub stake_history: Sysvar<'info, StakeHistory>,
     pub stake_program: Program<'info, Stake>,
     // Remaining accounts: [stake_pool_0, withdraw_authority_0, reserve_stake_0, pool_mint_0, vault_pool_token_account_0, manager_fee_0, ...]
 }
@@ -56,6 +55,55 @@ pub fn handler<'c: 'info, 'info>(
         total_pools >= 1,
         ErrorCode::AccountNotEnoughKeys
     );
+
+    // Validate that the provided accounts match the vault configuration
+    for i in 0..total_pools {
+        let base_idx = i * 6;
+        let stake_pool_account = &ctx.remaining_accounts[base_idx];
+        let withdraw_authority_account = &ctx.remaining_accounts[base_idx + 1];
+        let reserve_stake_account = &ctx.remaining_accounts[base_idx + 2];
+        let pool_mint_account = &ctx.remaining_accounts[base_idx + 3];
+        let manager_fee_account = &ctx.remaining_accounts[base_idx + 5];
+
+        // Validate stake pool matches vault configuration
+        require!(
+            stake_pool_account.key() == vault.stake_pools[i],
+            StakeBlendError::InvalidAccountData
+        );
+
+        // Validate pool mint matches vault configuration
+        require!(
+            pool_mint_account.key() == vault.pool_mints[i],
+            StakeBlendError::InvalidAccountData
+        );
+
+        // Deserialize the stake pool to validate other accounts
+        let stake_pool_data = stake_pool_account.try_borrow_data()?;
+        let stake_pool = StakePool::deserialize(&mut stake_pool_data.as_ref())
+            .map_err(|_| ErrorCode::AccountDidNotDeserialize)?;
+
+        // Validate withdraw authority matches stake pool's expected withdraw authority
+        let (expected_withdraw_authority, _) = spl_stake_pool::find_withdraw_authority_program_address(
+            &ctx.accounts.stake_pool_program.key(),
+            &stake_pool_account.key(),
+        );
+        require!(
+            withdraw_authority_account.key() == expected_withdraw_authority,
+            StakeBlendError::InvalidAccountData
+        );
+
+        // Validate reserve stake matches stake pool configuration
+        require!(
+            reserve_stake_account.key() == stake_pool.reserve_stake,
+            StakeBlendError::InvalidAccountData
+        );
+
+        // Validate manager fee account matches stake pool configuration
+        require!(
+            manager_fee_account.key() == stake_pool.manager_fee_account,
+            StakeBlendError::InvalidAccountData
+        );
+    }
 
     // Step 1: Calculate total vault value and withdrawal proportion
     let mut total_vault_value = 0u64;
@@ -133,7 +181,7 @@ pub fn handler<'c: 'info, 'info>(
         let pool_withdrawal_value = (total_withdrawal_value as u128)
             .checked_mul(pool_values[i] as u128)
             .ok_or(ErrorCode::InvalidNumericConversion)?
-            .checked_div(10000u128)
+            .checked_div(total_vault_value as u128)
             .ok_or(ErrorCode::InvalidNumericConversion)? as u64;
 
         if pool_withdrawal_value > 0 {

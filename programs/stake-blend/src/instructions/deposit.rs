@@ -3,6 +3,7 @@ use anchor_lang::prelude::*;
 use anchor_lang::error::ErrorCode;
 use anchor_spl::token_interface;
 use crate::state::*;
+use crate::StakeBlendError;
 use anchor_spl::token_interface::spl_token_metadata_interface::borsh::BorshDeserialize;
 use spl_stake_pool::state::StakePool;
 use crate::instructions::dependencies;
@@ -50,6 +51,55 @@ pub fn handler<'c: 'info, 'info>(
         total_pools >= 1,
         ErrorCode::AccountNotEnoughKeys
     );
+
+    // Validate that the provided accounts match the vault configuration
+    for i in 0..total_pools {
+        let base_idx = i * 7;
+        let stake_pool_account = &ctx.remaining_accounts[base_idx];
+        let withdraw_authority_account = &ctx.remaining_accounts[base_idx + 1];
+        let reserve_stake_account = &ctx.remaining_accounts[base_idx + 2];
+        let pool_mint_account = &ctx.remaining_accounts[base_idx + 3];
+        let manager_fee_account = &ctx.remaining_accounts[base_idx + 5];
+
+        // Validate stake pool matches vault configuration
+        require!(
+            stake_pool_account.key() == vault.stake_pools[i],
+            StakeBlendError::InvalidAccountData
+        );
+
+        // Validate pool mint matches vault configuration
+        require!(
+            pool_mint_account.key() == vault.pool_mints[i],
+            StakeBlendError::InvalidAccountData
+        );
+
+        // Deserialize the stake pool to validate other accounts
+        let stake_pool_data = stake_pool_account.try_borrow_data()?;
+        let stake_pool = StakePool::deserialize(&mut stake_pool_data.as_ref())
+            .map_err(|_| ErrorCode::AccountDidNotDeserialize)?;
+
+        // Validate withdraw authority matches stake pool's expected withdraw authority
+        let (expected_withdraw_authority, _) = spl_stake_pool::find_withdraw_authority_program_address(
+            &ctx.accounts.stake_pool_program.key(),
+            &stake_pool_account.key(),
+        );
+        require!(
+            withdraw_authority_account.key() == expected_withdraw_authority,
+            StakeBlendError::InvalidAccountData
+        );
+
+        // Validate reserve stake matches stake pool configuration
+        require!(
+            reserve_stake_account.key() == stake_pool.reserve_stake,
+            StakeBlendError::InvalidAccountData
+        );
+
+        // Validate manager fee account matches stake pool configuration
+        require!(
+            manager_fee_account.key() == stake_pool.manager_fee_account,
+            StakeBlendError::InvalidAccountData
+        );
+    }
 
     // Step 1: Calculate current vault value before deposit
     let mut total_vault_value = 0u64;

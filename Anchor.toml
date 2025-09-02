@@ -18,8 +18,8 @@ stake_blend = "Cw3KHMs521Ge3d4xETA6wGwqVNnY7z2xwz6Dtb2Fkp6t"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "mainnet"
-# cluster = "devnet"
+# cluster = "mainnet"
+cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
