@@ -5,7 +5,6 @@ export const STAKE_POOL_PROGRAM = new PublicKey("SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzg
 
 export const POOLS = [
   {
-    name: "BSol",
     stakePool: new PublicKey("stk9ApL5HeVAwPLr3TLhDXdZS8ptVu7zp6ov8HFDuMi"),
     poolMint: new PublicKey("bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1"),
     reserve: new PublicKey("rsrxDvYUXjH1RQj2Ke36LNZEVqGztATxFkqNukERqFT"),
@@ -13,7 +12,6 @@ export const POOLS = [
     managerFee: new PublicKey("Dpo148tVGewDPyh2FkGV18gouWctbdX2fHJopJGe9xv1"),
   },
   {
-    name: "saveSOL", 
     stakePool: new PublicKey("SAVEY1fVMBeRVo9V9rgEz8ENTvHreftd3QgpAKBDFV4"),
     poolMint: new PublicKey("SAVEDpx3nFNdzG3ymJfShYnrBuYy7LtQEABZQ3qtTFt"),
     reserve: new PublicKey("FL2AsvZPTW33QdmBgQx15ZdtaSbmuwY3oBCJMj63u9W1"),
@@ -22,7 +20,7 @@ export const POOLS = [
   }
 ];
 
-export const ALLOCATIONS = [7000, 3000]; // 70% BSol, 30% saveSOL
+export const ALLOCATIONS = [7000, 3000]; // 70% / 30% split
 
 // PDAs
 export const [MINT_PDA] = PublicKey.findProgramAddressSync(

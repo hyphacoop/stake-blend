@@ -3,10 +3,18 @@ import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import * as anchor from '@coral-xyz/anchor';
 import { StakeBlendClient } from '../lib/anchor-client';
+import { tokenMetadataService, TokenMetadata } from '../lib/token-metadata';
+import { POOLS, ALLOCATIONS } from '../lib/program-config';
 
 interface Balances {
   sol: number;
   vaultShares: number;
+}
+
+interface PoolWithMetadata {
+  poolMint: string;
+  allocation: number;
+  metadata: TokenMetadata | null;
 }
 
 export default function StakeBlendDemo() {
@@ -18,7 +26,9 @@ export default function StakeBlendDemo() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string>('');
   const [error, setError] = useState<string>('');
-  
+  const [poolsWithMetadata, setPoolsWithMetadata] = useState<PoolWithMetadata[]>([]);
+  const [metadataLoading, setMetadataLoading] = useState(true);
+
   const [depositAmount, setDepositAmount] = useState('');
   const [withdrawAmount, setWithdrawAmount] = useState('');
 
@@ -42,6 +52,32 @@ export default function StakeBlendDemo() {
       loadBalances();
     }
   }, [client]);
+
+  // Load token metadata on mount
+  useEffect(() => {
+    const fetchMetadata = async () => {
+      setMetadataLoading(true);
+      try {
+        const metadataList = await tokenMetadataService.getMultipleTokenMetadata(
+          POOLS.map(pool => pool.poolMint)
+        );
+
+        const poolsData: PoolWithMetadata[] = POOLS.map((pool, index) => ({
+          poolMint: pool.poolMint.toBase58(),
+          allocation: ALLOCATIONS[index],
+          metadata: metadataList[index],
+        }));
+
+        setPoolsWithMetadata(poolsData);
+      } catch (err) {
+        console.error('Error loading token metadata:', err);
+      } finally {
+        setMetadataLoading(false);
+      }
+    };
+
+    fetchMetadata();
+  }, []);
 
   const loadBalances = async () => {
     if (!client) return;
@@ -178,7 +214,23 @@ export default function StakeBlendDemo() {
 
       <div className="card">
         <h2>Deposit SOL</h2>
-        <p>Get diversified LST exposure (70% BSol + 30% saveSOL)</p>
+        {metadataLoading ? (
+          <p>Loading LST information...</p>
+        ) : (
+          <div>
+            <p>Get diversified LST exposure:</p>
+            {poolsWithMetadata.map((pool, index) => (
+              <div key={pool.poolMint} style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '4px 0' }}>
+                {pool.metadata?.logoURI && (
+                  <img src={pool.metadata.logoURI} alt={pool.metadata.symbol} style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
+                )}
+                <span>
+                  {pool.allocation / 100}% {pool.metadata?.name || pool.metadata?.symbol || 'Unknown Token'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
         <input
           type="number"
           value={depositAmount}
