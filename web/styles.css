@@ -1,0 +1,488 @@
+/**
+ * Terminal CRT Aesthetic Stylesheet
+ * Clean, reusable styles for terminal/CRT-themed interfaces
+ * Features: Green phosphor colors, subtle flicker, text glow, scan lines
+ * Optimized for legibility while maintaining retro aesthetic
+ */
+
+/* ============================================
+   FONTS
+   ============================================ */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+
+
+/* ============================================
+   CSS RESET & BASE STYLES
+   ============================================ */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    background: #0a0e0a;
+    color: #33ff33;
+    padding: 2rem;
+    line-height: 1.6;
+    overflow-x: hidden;
+}
+
+
+/* ============================================
+   CRT EFFECTS
+   ============================================ */
+
+/* Subtle screen flicker animation */
+@keyframes flicker {
+    0% { opacity: 0.97; }
+    50% { opacity: 1; }
+    100% { opacity: 0.97; }
+}
+
+body {
+    animation: flicker 0.15s infinite;
+}
+
+/* Blinking cursor animation */
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
+
+/* Pulsing status indicator animation */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        box-shadow: 0 0 5px #33ff33;
+    }
+    50% {
+        opacity: 0.5;
+        box-shadow: 0 0 15px #33ff33;
+    }
+}
+
+
+/* ============================================
+   LAYOUT - TERMINAL CONTAINER
+   ============================================ */
+.terminal-container {
+    max-width: 1000px;
+    margin: 0 auto;
+    background: rgba(0, 0, 0, 0.8);
+    border: 3px solid #33ff33;
+    border-radius: 8px;
+    padding: 2rem;
+    box-shadow: 0 0 50px rgba(51, 255, 51, 0.3),
+                inset 0 0 30px rgba(51, 255, 51, 0.05);
+    position: relative;
+}
+
+/* Scan lines applied to container background only - text stays crisp */
+.terminal-container::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.4),
+        rgba(0, 0, 0, 0.4) 1px,
+        transparent 1px,
+        transparent 2px
+    );
+    pointer-events: none;
+    z-index: 0;
+    border-radius: 8px;
+}
+
+
+/* ============================================
+   HEADER COMPONENTS
+   ============================================ */
+.terminal-header {
+    border-bottom: 2px solid #33ff33;
+    padding-bottom: 1rem;
+    margin-bottom: 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    z-index: 1;
+}
+
+.terminal-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.logo-ascii {
+    color: #ffaa00;
+    font-weight: 700;
+}
+
+.terminal-subtitle {
+    font-size: 0.75rem;
+    color: #88ff88;
+    margin-top: 0.5rem;
+}
+
+.terminal-info {
+    font-size: 0.8rem;
+    color: #88ff88;
+    text-align: right;
+}
+
+
+/* ============================================
+   CURSOR & PROMPT
+   ============================================ */
+.cursor {
+    display: inline-block;
+    width: 10px;
+    height: 18px;
+    background: #33ff33;
+    margin-left: 5px;
+    animation: blink 1s step-end infinite;
+}
+
+.prompt {
+    color: #ffaa00;
+    margin-right: 0.5rem;
+}
+
+
+/* ============================================
+   SECTIONS & CONTENT LAYOUT
+   ============================================ */
+.section {
+    margin-bottom: 2rem;
+    border-left: 3px solid #33ff33;
+    padding-left: 1.5rem;
+    margin-left: 0.5rem;
+    position: relative;
+    z-index: 1;
+}
+
+.section-header {
+    color: #ffaa00;
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+}
+
+
+/* ============================================
+   TEXT & LABELS
+   ============================================ */
+.info-line {
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.label {
+    color: #88ff88;
+    display: inline-block;
+    min-width: 180px;
+}
+
+.value {
+    color: #33ff33;
+    font-weight: 600;
+}
+
+.value-highlight {
+    color: #ffaa00;
+    font-weight: 700;
+}
+
+
+/* ============================================
+   APR DISPLAY
+   ============================================ */
+.apr-display {
+    background: rgba(255, 170, 0, 0.1);
+    border: 2px solid #ffaa00;
+    padding: 1rem 1.5rem;
+    margin: 1rem 0;
+    display: inline-block;
+}
+
+.apr-label {
+    color: #ffaa00;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.apr-value {
+    color: #ffaa00;
+    font-size: 1.8rem;
+    font-weight: 700;
+}
+
+
+/* ============================================
+   BASKET COMPOSITION
+   ============================================ */
+.basket-composition {
+    background: rgba(0, 0, 0, 0.3);
+    border: 2px solid #33ff33;
+    padding: 1.25rem;
+    margin: 1rem 0;
+}
+
+.basket-title {
+    color: #33ff33;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.basket-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    font-size: 0.85rem;
+}
+
+.basket-bar-container {
+    flex: 1;
+    height: 20px;
+    background: rgba(51, 255, 51, 0.1);
+    border: 1px solid #33ff33;
+    margin: 0 1rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.basket-bar {
+    height: 100%;
+    background: #33ff33;
+    position: relative;
+}
+
+.basket-bar-label {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    color: #0a0e0a;
+    font-weight: 700;
+    font-size: 0.75rem;
+}
+
+.basket-percentage {
+    color: #ffaa00;
+    font-weight: 700;
+    min-width: 45px;
+}
+
+.basket-token {
+    color: #88ff88;
+    min-width: 100px;
+}
+
+.basket-apr {
+    color: #33ff33;
+    min-width: 80px;
+    font-size: 0.8rem;
+}
+
+
+/* ============================================
+   FORM ELEMENTS - INPUTS
+   ============================================ */
+.input-group {
+    margin: 1rem 0;
+}
+
+.input-label {
+    color: #88ff88;
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+.terminal-input {
+    background: rgba(51, 255, 51, 0.05);
+    border: 2px solid #33ff33;
+    color: #33ff33;
+    padding: 0.75rem 1rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.95rem;
+    width: 100%;
+    max-width: 400px;
+    outline: none;
+    transition: all 0.2s;
+}
+
+.terminal-input:focus {
+    background: rgba(51, 255, 51, 0.1);
+    box-shadow: 0 0 10px rgba(51, 255, 51, 0.3);
+}
+
+.terminal-input::placeholder {
+    color: rgba(51, 255, 51, 0.3);
+}
+
+
+/* ============================================
+   FORM ELEMENTS - BUTTONS
+   ============================================ */
+.button-group {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+}
+
+.terminal-button {
+    background: transparent;
+    border: 2px solid #33ff33;
+    color: #33ff33;
+    padding: 0.75rem 1.5rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    position: relative;
+}
+
+.terminal-button:hover {
+    background: rgba(51, 255, 51, 0.1);
+    box-shadow: 0 0 15px rgba(51, 255, 51, 0.4);
+    transform: translateY(-2px);
+}
+
+.terminal-button.primary {
+    background: rgba(51, 255, 51, 0.15);
+}
+
+.terminal-button.warning {
+    border-color: #ff3333;
+    color: #ff3333;
+}
+
+.terminal-button.warning:hover {
+    background: rgba(255, 51, 51, 0.1);
+    box-shadow: 0 0 15px rgba(255, 51, 51, 0.4);
+}
+
+
+/* ============================================
+   STATUS & INDICATORS
+   ============================================ */
+.wallet-badge {
+    background: rgba(255, 170, 0, 0.1);
+    border: 2px solid #ffaa00;
+    color: #ffaa00;
+    padding: 0.75rem 1.5rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 1rem 0;
+}
+
+.status-indicator {
+    width: 10px;
+    height: 10px;
+    background: #33ff33;
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.info-box {
+    background: rgba(255, 170, 0, 0.05);
+    border: 1px dashed #ffaa00;
+    padding: 1rem;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+    color: #ffaa00;
+    position: relative;
+    z-index: 1;
+}
+
+
+/* ============================================
+   COMMAND LOG
+   ============================================ */
+.command-log {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid #33ff33;
+    padding: 1rem;
+    margin-top: 2rem;
+    font-size: 0.8rem;
+    max-height: 200px;
+    overflow-y: auto;
+    position: relative;
+    z-index: 1;
+}
+
+.command-log::-webkit-scrollbar {
+    width: 8px;
+}
+
+.command-log::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.command-log::-webkit-scrollbar-thumb {
+    background: #33ff33;
+}
+
+.log-entry {
+    margin-bottom: 0.5rem;
+    opacity: 0.7;
+}
+
+.log-timestamp {
+    color: #88ff88;
+}
+
+
+/* ============================================
+   FOOTER
+   ============================================ */
+.footer {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid #33ff33;
+    text-align: center;
+    font-size: 0.75rem;
+    color: #88ff88;
+    position: relative;
+    z-index: 1;
+}
+
+
+/* ============================================
+   RESPONSIVE DESIGN
+   ============================================ */
+@media (max-width: 768px) {
+    body {
+        padding: 1rem;
+    }
+
+    .terminal-container {
+        padding: 1rem;
+    }
+
+    .terminal-header {
+        flex-direction: column;
+        gap: 0.5rem;
+        align-items: flex-start;
+    }
+}
