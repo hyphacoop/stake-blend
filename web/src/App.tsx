@@ -25,9 +25,25 @@ export default function App() {
     <ConnectionProvider endpoint={endpoint}>
       <WalletProvider wallets={wallets} autoConnect>
         <WalletModalProvider>
-          <div>
-            <h1>🥩 Stake Blend Demo</h1>
-            <p>Deposit SOL to get diversified liquid staking exposure</p>
+          <div className="terminal-container">
+            <div className="terminal-header">
+              <div>
+                <div className="terminal-title">
+                  <span className="logo-ascii">◈</span>
+                  <span>STAKE BLEND</span>
+                  <span className="cursor"></span>
+                </div>
+                <div className="terminal-subtitle">
+                  Multi-LST vaults with tokenized shares
+                </div>
+              </div>
+              <div className="terminal-info">
+                Solana Mainnet
+              </div>
+            </div>
+            <div className="info-box">
+              <span className="prompt">[INFO]</span> Diversified liquid staking exposure through multi-LST vaults
+            </div>
             <StakeBlendDemo />
           </div>
         </WalletModalProvider>

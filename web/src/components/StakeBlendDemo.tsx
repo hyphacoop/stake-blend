@@ -182,8 +182,10 @@ export default function StakeBlendDemo() {
 
   if (!wallet.connected) {
     return (
-      <div className="card">
-        <h2>Connect Wallet</h2>
+      <div className="section">
+        <div className="section-header">
+          <span className="prompt">$</span> wallet.connect
+        </div>
         <WalletMultiButton />
       </div>
     );
@@ -191,39 +193,55 @@ export default function StakeBlendDemo() {
 
   return (
     <div>
-      <div className="card">
-        <h2>Wallet Info</h2>
+      <div className="section">
+        <div className="section-header">
+          <span className="prompt">$</span> wallet.status
+        </div>
         <WalletMultiButton />
-        <p><strong>SOL Balance:</strong> {balances.sol.toFixed(4)} SOL</p>
-        <p><strong>Vault Shares (yes, we messed the decimals up 😭):</strong> {balances.vaultShares.toFixed(6)}</p>
-        <button onClick={loadBalances} disabled={loading}>
-          🔄 Refresh Balances
-        </button>
+        <div className="info-line">
+          <span className="label">SOL Balance:</span>
+          <span className="value-highlight">{balances.sol.toFixed(4)} SOL</span>
+        </div>
+        <div className="info-line">
+          <span className="label">Vault Shares:</span>
+          <span className="value">{balances.vaultShares.toFixed(6)}</span>
+        </div>
+        <div className="button-group">
+          <button className="terminal-button" onClick={loadBalances} disabled={loading}>
+            [↻] Refresh Balances
+          </button>
+        </div>
       </div>
 
-      <div className="card">
-        <h2>Setup Functions</h2>
-        <p><em>Only needed once for initial setup</em></p>
-        {/* <button onClick={handleInitialize} disabled={loading}>
-          Initialize Vault
-        </button> */}
-        <button onClick={handleCreateAccount} disabled={loading}>
-          Create User Account
-        </button>
+      <div className="section">
+        <div className="section-header">
+          <span className="prompt">$</span> setup.init
+        </div>
+        <div style={{fontSize: '0.85rem', color: '#88ff88', marginBottom: '1rem', fontStyle: 'italic'}}>
+          <span className="prompt">[!]</span> First-time setup (run once)
+        </div>
+        <div className="button-group">
+          <button className="terminal-button" onClick={handleCreateAccount} disabled={loading}>
+            [+] Create User Account
+          </button>
+        </div>
       </div>
 
-      <div className="card">
-        <h2>Deposit SOL</h2>
+      <div className="section">
+        <div className="section-header">
+          <span className="prompt">$</span> stake.deposit
+        </div>
         {metadataLoading ? (
-          <p>Loading LST information...</p>
+          <p style={{fontSize: '0.85rem', color: '#88ff88'}}>Loading LST information...</p>
         ) : (
-          <div>
-            <p>Get diversified LST exposure:</p>
+          <div style={{fontSize: '0.85rem', color: '#88ff88', marginBottom: '1rem'}}>
+            Get diversified LST exposure:
             {poolsWithMetadata.map((pool, index) => (
               <div key={pool.poolMint} style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '4px 0' }}>
                 {pool.metadata?.logoURI && (
                   <img src={pool.metadata.logoURI} alt={pool.metadata.symbol} style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
                 )}
+                <span className="prompt">├──</span>
                 <span>
                   {pool.allocation / 100}% {pool.metadata?.name || pool.metadata?.symbol || 'Unknown Token'}
                 </span>
@@ -231,61 +249,86 @@ export default function StakeBlendDemo() {
             ))}
           </div>
         )}
-        <input
-          type="number"
-          value={depositAmount}
-          onChange={(e) => setDepositAmount(e.target.value)}
-          placeholder="Amount in SOL"
-          step="0.1"
-          min="0"
-          disabled={loading}
-        />
-        <button onClick={handleDeposit} disabled={loading || !depositAmount}>
-          💰 Deposit
-        </button>
+        <div className="input-group">
+          <label className="input-label">
+            <span className="prompt">&gt;</span> Amount in SOL
+          </label>
+          <input
+            className="terminal-input"
+            type="number"
+            value={depositAmount}
+            onChange={(e) => setDepositAmount(e.target.value)}
+            placeholder="0.00"
+            step="0.1"
+            min="0"
+            disabled={loading}
+          />
+        </div>
+        <div className="button-group">
+          <button className="terminal-button primary" onClick={handleDeposit} disabled={loading || !depositAmount}>
+            [▶] Execute Deposit
+          </button>
+        </div>
       </div>
 
-      <div className="card">
-        <h2>Withdraw</h2>
-        <p>Burn vault shares to get SOL back</p>
-        <input
-          type="number"
-          value={withdrawAmount}
-          onChange={(e) => setWithdrawAmount(e.target.value)}
-          placeholder="Shares to withdraw"
-          step="0.1"
-          min="0"
-          max={balances.vaultShares}
-          disabled={loading}
-        />
-        <button onClick={handleWithdraw} disabled={loading || !withdrawAmount}>
-          🏦 Withdraw
-        </button>
-        <button 
-          onClick={() => setWithdrawAmount(balances.vaultShares.toString())}
-          disabled={loading || balances.vaultShares === 0}
-        >
-          Withdraw All
-        </button>
+      <div className="section">
+        <div className="section-header">
+          <span className="prompt">$</span> stake.withdraw
+        </div>
+        <div style={{fontSize: '0.85rem', color: '#88ff88', marginBottom: '1rem'}}>
+          Burn vault shares → Receive proportional SOL from basket
+        </div>
+        <div className="input-group">
+          <label className="input-label">
+            <span className="prompt">&gt;</span> Shares to withdraw
+          </label>
+          <input
+            className="terminal-input"
+            type="number"
+            value={withdrawAmount}
+            onChange={(e) => setWithdrawAmount(e.target.value)}
+            placeholder="0.000000"
+            step="0.1"
+            min="0"
+            max={balances.vaultShares}
+            disabled={loading}
+          />
+        </div>
+        <div className="button-group">
+          <button className="terminal-button warning" onClick={handleWithdraw} disabled={loading || !withdrawAmount}>
+            [▶] Execute Withdraw
+          </button>
+          <button
+            className="terminal-button warning"
+            onClick={() => setWithdrawAmount(balances.vaultShares.toString())}
+            disabled={loading || balances.vaultShares === 0}
+          >
+            [▶▶] Withdraw All
+          </button>
+        </div>
       </div>
 
       {status && (
-        <div className="card">
-          <h3>Status</h3>
-          <p className="success">{status}</p>
+        <div className="section">
+          <div className="section-header">
+            <span className="prompt">$</span> status
+          </div>
+          <p style={{color: '#33ff33', fontSize: '0.9rem'}}>{status}</p>
         </div>
       )}
 
       {error && (
-        <div className="card">
-          <h3>Error</h3>
-          <p className="error">{error}</p>
+        <div className="section">
+          <div className="section-header">
+            <span className="prompt">$</span> error
+          </div>
+          <p style={{color: '#ff3333', fontSize: '0.9rem'}}>{error}</p>
         </div>
       )}
 
       {loading && (
-        <div className="card">
-          <p>⏳ Processing transaction...</p>
+        <div className="section">
+          <p style={{fontSize: '0.9rem'}}>⏳ Processing transaction...</p>
         </div>
       )}
     </div>
