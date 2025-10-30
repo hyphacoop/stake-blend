@@ -4,6 +4,7 @@ import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import * as anchor from '@coral-xyz/anchor';
 import { StakeBlendClient } from '../lib/anchor-client';
 import { tokenMetadataService, TokenMetadata } from '../lib/token-metadata';
+import { APYService, LSTAPYResult, formatAPY } from '../lib/apy-service';
 import { POOLS, ALLOCATIONS } from '../lib/program-config';
 
 interface Balances {
@@ -15,6 +16,7 @@ interface PoolWithMetadata {
   poolMint: string;
   allocation: number;
   metadata: TokenMetadata | null;
+  apy: LSTAPYResult | null;
 }
 
 export default function StakeBlendDemo() {
@@ -28,6 +30,7 @@ export default function StakeBlendDemo() {
   const [error, setError] = useState<string>('');
   const [poolsWithMetadata, setPoolsWithMetadata] = useState<PoolWithMetadata[]>([]);
   const [metadataLoading, setMetadataLoading] = useState(true);
+  const [aggregateAPY, setAggregateAPY] = useState<number | null>(null);
 
   const [depositAmount, setDepositAmount] = useState('');
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -53,31 +56,45 @@ export default function StakeBlendDemo() {
     }
   }, [client]);
 
-  // Load token metadata on mount
+  // Load token metadata and APYs on mount
   useEffect(() => {
-    const fetchMetadata = async () => {
+    const fetchMetadataAndAPYs = async () => {
       setMetadataLoading(true);
       try {
-        const metadataList = await tokenMetadataService.getMultipleTokenMetadata(
-          POOLS.map(pool => pool.poolMint)
-        );
+        // Create APY service
+        const apyService = new APYService();
+
+        // Fetch metadata and APYs in parallel
+        const [metadataList, apyList] = await Promise.all([
+          tokenMetadataService.getMultipleTokenMetadata(
+            POOLS.map(pool => pool.poolMint)
+          ),
+          apyService.getMultipleLSTAPY(
+            POOLS.map(pool => pool.poolMint)
+          ),
+        ]);
 
         const poolsData: PoolWithMetadata[] = POOLS.map((pool, index) => ({
           poolMint: pool.poolMint.toBase58(),
           allocation: ALLOCATIONS[index],
           metadata: metadataList[index],
+          apy: apyList[index],
         }));
 
         setPoolsWithMetadata(poolsData);
+
+        // Calculate weighted aggregate APY
+        const weightedAPY = apyService.calculateWeightedAPY(apyList, ALLOCATIONS);
+        setAggregateAPY(weightedAPY);
       } catch (err) {
-        console.error('Error loading token metadata:', err);
+        console.error('Error loading token metadata and APYs:', err);
       } finally {
         setMetadataLoading(false);
       }
     };
 
-    fetchMetadata();
-  }, []);
+    fetchMetadataAndAPYs();
+  }, [connection]);
 
   const loadBalances = async () => {
     if (!client) return;
@@ -235,7 +252,12 @@ export default function StakeBlendDemo() {
           <p style={{fontSize: '0.85rem', color: '#88ff88'}}>Loading LST information...</p>
         ) : (
           <div style={{fontSize: '0.85rem', color: '#88ff88', marginBottom: '1rem'}}>
-            Get diversified LST exposure:
+            <div>Get diversified LST exposure:</div>
+            {aggregateAPY !== null && (
+              <div style={{ fontSize: '1.1em', fontWeight: 'bold', margin: '8px 0' }}>
+                Vault APY: {formatAPY(aggregateAPY)}
+              </div>
+            )}
             {poolsWithMetadata.map((pool, index) => (
               <div key={pool.poolMint} style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '4px 0' }}>
                 {pool.metadata?.logoURI && (
@@ -244,6 +266,7 @@ export default function StakeBlendDemo() {
                 <span className="prompt">├──</span>
                 <span>
                   {pool.allocation / 100}% {pool.metadata?.name || pool.metadata?.symbol || 'Unknown Token'}
+                  {pool.apy && <span style={{ color: '#4caf50', marginLeft: '8px' }}>({formatAPY(pool.apy.apy)})</span>}
                 </span>
               </div>
             ))}

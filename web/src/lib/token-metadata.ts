@@ -58,6 +58,7 @@ class TokenMetadataService {
 
   /**
    * Fetch metadata for multiple tokens at once
+   * IMPORTANT: Preserves input order by creating a map of address -> metadata
    */
   async getMultipleTokenMetadata(
     mintAddresses: (string | PublicKey)[]
@@ -69,7 +70,10 @@ class TokenMetadataService {
     try {
       const tokens = await this.client.fetchMints(pubkeys);
 
-      return tokens.map(token => {
+      // Create a map of address -> metadata to preserve order
+      const metadataMap = new Map<string, TokenMetadata>();
+
+      tokens.forEach(token => {
         if (token) {
           const metadata: TokenMetadata = {
             address: token.address,
@@ -82,13 +86,18 @@ class TokenMetadataService {
 
           // Cache the result
           this.cache.set(token.address, metadata);
-          return metadata;
+          metadataMap.set(token.address, metadata);
         }
-        return null;
+      });
+
+      // Return results in the same order as input
+      return pubkeys.map(pubkey => {
+        const address = pubkey.toBase58();
+        return metadataMap.get(address) || null;
       });
     } catch (error) {
       console.error('Error fetching multiple token metadata:', error);
-      // Fallback to individual fetches
+      // Fallback to individual fetches (preserves order via Promise.all)
       return Promise.all(mintAddresses.map((mint) => this.getTokenMetadata(mint)));
     }
   }
