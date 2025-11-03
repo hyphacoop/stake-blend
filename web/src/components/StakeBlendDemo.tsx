@@ -70,7 +70,7 @@ export default function StakeBlendDemo() {
             POOLS.map(pool => pool.poolMint)
           ),
           apyService.getMultipleLSTAPY(
-            POOLS.map(pool => pool.poolMint)
+            POOLS.map(pool => pool.stakePool)
           ),
         ]);
 

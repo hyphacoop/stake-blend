@@ -1,45 +1,46 @@
 import { PublicKey } from '@solana/web3.js';
-import { DATA_SOURCE, calcAverageApy } from '@glitchful-dev/sol-apy-sdk';
+import {
+  fetchCSVLink,
+  getPriceRangeFromPeriod,
+  calcYield,
+  PERIOD,
+  type PriceRecord
+} from '@glitchful-dev/sol-apy-sdk';
 import { parse } from 'csv-parse/sync';
 
-/**
- * Price record from CSV (matches SDK type)
- */
-type PriceRecord = {
-  timestamp: number;
-  epoch: number;
-  price: number;
-};
+// Re-export PERIOD for external use
+export { PERIOD };
 
 /**
  * Browser-compatible CSV fetching and parsing
- * Replicates SDK's parsePriceRecordsFromCSV logic without Node.js streams
+ * SDK's fetchPricesFromCsv uses Node.js streams, so we reimplement for browser
  */
-async function fetchAndParsePricesCsv(url: string): Promise<PriceRecord[]> {
-  // Fetch CSV text using browser fetch
-  const response = await fetch(url);
+async function fetchPricesForBrowser(stakePoolAddress: string): Promise<PriceRecord[]> {
+  // Get the CSV URL from the SDK (uses SDK's built-in pool mapping)
+  const csvUrl = fetchCSVLink(stakePoolAddress);
+
+  // Fetch using browser's native fetch
+  const response = await fetch(csvUrl);
   const csvText = await response.text();
 
-  // Parse CSV using csv-parse library (same as SDK uses)
+  // Parse CSV using csv-parse/sync (browser-compatible)
   const rows = parse(csvText, { delimiter: ',', columns: true });
 
-  // Transform and validate rows (copied from SDK's parsePriceRecordsFromCSV)
+  // Transform rows to PriceRecord format
   const records: PriceRecord[] = [];
   for (const row of rows) {
     const { timestamp, epoch, price } = row;
 
-    // Validation (same as SDK)
     if (!timestamp || !epoch || !price) {
       throw new Error('Columns "timestamp", "epoch", "price" must be present!');
     }
 
     const record: PriceRecord = {
-      timestamp: new Date(timestamp).getTime(),
+      timestamp: Math.round(new Date(timestamp).getTime() / 1000), // SDK uses seconds
       epoch: Number(epoch),
       price: Number(price),
     };
 
-    // Type validation (same as SDK)
     if (isNaN(record.timestamp)) {
       throw new Error('Timestamp must be a... timestamp!');
     }
@@ -60,7 +61,7 @@ async function fetchAndParsePricesCsv(url: string): Promise<PriceRecord[]> {
  * APY data result
  */
 export interface LSTAPYResult {
-  mint: string;
+  stakePool: string; // Stake pool address
   apy: number; // As decimal (e.g., 0.0723 for 7.23%)
   apr: number; // As decimal
   calculatedAt: number; // Timestamp
@@ -76,21 +77,15 @@ interface CacheEntry {
 }
 
 /**
- * Mapping of mint addresses to DATA_SOURCE constants
+ * Default period for APY calculation (30 days)
  */
-const MINT_TO_DATA_SOURCE: Record<string, keyof typeof DATA_SOURCE> = {
-  // BlazeStake (bSOL) - uses SOLBLAZE_CSV from SDK
-  'bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1': 'SOLBLAZE_CSV',
-
-  // Add more as needed:
-  // 'mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So': 'MARINADE_CSV', // Marinade (mSOL)
-  // 'J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn': 'JITO_CSV',      // Jito (jitoSOL)
-};
+const DEFAULT_PERIOD = PERIOD.DAYS_30;
 
 /**
  * APY Service using glitchful-dev/sol-apy-sdk
  *
- * Fetches APY data from GitHub CSV files for supported LSTs.
+ * Fetches APY data from GitHub CSV files for 80+ supported LSTs.
+ * Uses the SDK's built-in price fetching and yield calculation functions.
  * Returns 0% APY for unsupported LSTs.
  */
 export class APYService {
@@ -98,93 +93,94 @@ export class APYService {
   private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
   /**
-   * Get APY for a specific LST
+   * Get APY for a specific stake pool
    *
-   * @param mintAddress - LST mint address
+   * @param stakePoolAddress - Stake pool address
+   * @param period - Optional period for calculation (defaults to 30 days)
    * @returns APY result or null if failed
    */
-  async getLSTAPY(mintAddress: PublicKey | string): Promise<LSTAPYResult | null> {
-    const mint = mintAddress.toString();
+  async getLSTAPY(
+    stakePoolAddress: PublicKey | string,
+    period: PERIOD = DEFAULT_PERIOD
+  ): Promise<LSTAPYResult | null> {
+    const stakePool = stakePoolAddress.toString();
 
     // Check cache first
-    const cached = this.cache.get(mint);
+    const cached = this.cache.get(stakePool);
     if (cached && Date.now() < cached.expiresAt) {
-      console.log(`[APY Service] Cache hit: ${mint}`);
+      console.log(`[APY Service] Cache hit: ${stakePool}`);
       return cached.data;
     }
 
-    // Check if this LST is supported
-    const dataSourceKey = MINT_TO_DATA_SOURCE[mint];
-
-    if (!dataSourceKey) {
-      // LST not supported - return 0% APY
-      console.warn(`[APY Service] LST not supported: ${mint} - returning 0% APY`);
-      const result: LSTAPYResult = {
-        mint,
-        apy: 0,
-        apr: 0,
-        calculatedAt: Date.now(),
-        supported: false,
-      };
-
-      // Cache the zero result too (no need to keep warning)
-      this.cache.set(mint, {
-        data: result,
-        expiresAt: Date.now() + this.CACHE_TTL_MS,
-      });
-
-      return result;
-    }
-
     try {
-      console.log(`[APY Service] Fetching APY for ${mint} using ${dataSourceKey}`);
+      console.log(`[APY Service] Fetching APY for stake pool ${stakePool} using ${period}s period`);
 
-      // Fetch price data from CSV
-      const dataSource = DATA_SOURCE[dataSourceKey];
-      const prices = await fetchAndParsePricesCsv(dataSource);
+      // Fetch price data from CSV (browser-compatible version)
+      const prices = await fetchPricesForBrowser(stakePool);
 
-      // Calculate APY using SDK's calcAverageApy (10 epochs lookback ≈ 20-30 days)
-      const apy = calcAverageApy(prices, 10);
+      // Get price range for the specified period
+      const priceRange = getPriceRangeFromPeriod(prices, period);
 
-      if (apy === null) {
-        console.error(`[APY Service] Failed to calculate APY for ${mint}`);
+      if (!priceRange) {
+        console.error(`[APY Service] No price data available for stake pool ${stakePool} in the specified period`);
         return null;
       }
 
-      // SDK returns APY as decimal (e.g., 0.0671 for 6.71%)
+      // Calculate APY and APR using SDK's calcYield
+      const { apy, apr } = calcYield(priceRange);
+
+      // SDK returns APY and APR as decimals (e.g., 0.0671 for 6.71%)
       const result: LSTAPYResult = {
-        mint,
-        apy: apy,
-        apr: apy, // APR ≈ APY for these calculations
+        stakePool,
+        apy,
+        apr,
         calculatedAt: Date.now(),
         supported: true,
       };
 
-      console.log(`[APY Service] APY for ${mint}: ${(result.apy * 100).toFixed(2)}%`);
+      console.log(
+        `[APY Service] Stake pool ${stakePool}: APY ${(result.apy * 100).toFixed(2)}%, APR ${(result.apr * 100).toFixed(2)}%`
+      );
 
       // Cache the result
-      this.cache.set(mint, {
+      this.cache.set(stakePool, {
         data: result,
         expiresAt: Date.now() + this.CACHE_TTL_MS,
       });
 
       return result;
     } catch (error) {
-      console.error(`[APY Service] Error fetching APY for ${mint}:`, error);
-      return null;
+      console.error(`[APY Service] Error fetching APY for stake pool ${stakePool}:`, error);
+
+      // Return 0% APY on error (likely unsupported pool)
+      const result: LSTAPYResult = {
+        stakePool,
+        apy: 0,
+        apr: 0,
+        calculatedAt: Date.now(),
+        supported: false,
+      };
+
+      // Cache the zero result
+      this.cache.set(stakePool, {
+        data: result,
+        expiresAt: Date.now() + this.CACHE_TTL_MS,
+      });
+
+      return result;
     }
   }
 
   /**
-   * Get APY data for multiple LSTs in parallel
+   * Get APY data for multiple stake pools in parallel
    *
-   * @param mintAddresses - Array of LST mint addresses
+   * @param stakePoolAddresses - Array of stake pool addresses
    */
   async getMultipleLSTAPY(
-    mintAddresses: (PublicKey | string)[]
+    stakePoolAddresses: (PublicKey | string)[]
   ): Promise<(LSTAPYResult | null)[]> {
     return Promise.all(
-      mintAddresses.map((mint) => this.getLSTAPY(mint))
+      stakePoolAddresses.map((stakePool) => this.getLSTAPY(stakePool))
     );
   }
 
@@ -216,7 +212,7 @@ export class APYService {
         totalWeight += weight;
 
         if (!result.supported) {
-          console.warn(`[APY Service] Including unsupported LST ${result.mint} with 0% APY in weighted average`);
+          console.warn(`[APY Service] Including unsupported stake pool ${result.stakePool} with 0% APY in weighted average`);
         }
       }
     }
