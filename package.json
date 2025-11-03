@@ -6,7 +6,6 @@
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
-    "@glitchful-dev/sol-apy-sdk": "^3.0.9",
     "@solana/spl-stake-pool": "^1.1.8",
     "@solana/spl-token": "^0.4.13"
   },
