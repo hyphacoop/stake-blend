@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "update-idl": "cp ../target/idl/stake_blend.json src/lib/ && cp ../target/types/stake_blend.ts src/lib/"
+    "update-idl": "cp ../target/idl/stake_blend.json src/lib/ && cp ../target/types/stake_blend.ts src/lib/",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
@@ -26,12 +29,19 @@
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.0",
+    "@vitest/ui": "^4.0.6",
+    "jsdom": "^27.1.0",
     "typescript": "^5.9.2",
     "vite": "^7.1.2",
-    "vite-plugin-node-polyfills": "^0.24.0"
+    "vite-plugin-node-polyfills": "^0.24.0",
+    "vitest": "^4.0.6"
   },
   "overrides": {
     "node-stdlib-browser": {

@@ -1,6 +1,6 @@
 import * as anchor from '@coral-xyz/anchor';
-import { Connection, PublicKey, SYSVAR_CLOCK_PUBKEY, SYSVAR_STAKE_HISTORY_PUBKEY, StakeProgram } from '@solana/web3.js';
-import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { Connection, PublicKey, SYSVAR_CLOCK_PUBKEY, SYSVAR_STAKE_HISTORY_PUBKEY, StakeProgram, Transaction } from '@solana/web3.js';
+import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction } from '@solana/spl-token';
 import { PROGRAM_ID, STAKE_POOL_PROGRAM, POOLS, ALLOCATIONS, MINT_PDA, VAULT_PDA } from './program-config';
 import type { StakeBlend } from './stake_blend';
 import idl from './stake_blend.json';
@@ -62,33 +62,14 @@ export class StakeBlendClient {
       .rpc();
   }
 
-  async createUserAccount() {
-    const userTokenAccount = await getAssociatedTokenAddress(
-      MINT_PDA,
-      this.wallet.publicKey
-    );
-
-    return await this.program.methods
-      .createUserAccount()
-      .accounts({
-        tokenAccount: userTokenAccount,
-        signer: this.wallet.publicKey,
-        mint: MINT_PDA,
-        systemProgram: anchor.web3.SystemProgram.programId,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-      })
-      .rpc();
-  }
-
   async deposit(amountSOL: number) {
     const userTokenAccount = await getAssociatedTokenAddress(
       MINT_PDA,
       this.wallet.publicKey
     );
-    
+
     const amount = new anchor.BN(amountSOL * 1e9);
-    
+
     const remainingAccounts = [];
     for (const pool of POOLS) {
       const vaultPoolTokenAccount = await getAssociatedTokenAddress(
@@ -108,19 +89,51 @@ export class StakeBlendClient {
       );
     }
 
-    return await this.program.methods
-      .deposit(amount)
-      .accounts({
-        mint: MINT_PDA,
-        vault: VAULT_PDA,
-        userVaultTokenAccount: userTokenAccount,
-        signer: this.wallet.publicKey,
-        systemProgram: anchor.web3.SystemProgram.programId,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        stakePoolProgram: STAKE_POOL_PROGRAM,
-      })
-      .remainingAccounts(remainingAccounts)
-      .rpc();
+    // Check if user's ATA exists
+    const accountInfo = await this.connection.getAccountInfo(userTokenAccount);
+    const ataExists = accountInfo !== null;
+
+    if (!ataExists) {
+      // ATA doesn't exist - build transaction with both createATA and deposit instructions
+      const createAtaIx = createAssociatedTokenAccountInstruction(
+        this.wallet.publicKey, // payer
+        userTokenAccount,       // ata
+        this.wallet.publicKey, // owner
+        MINT_PDA               // mint
+      );
+
+      const depositIx = await this.program.methods
+        .deposit(amount)
+        .accounts({
+          mint: MINT_PDA,
+          vault: VAULT_PDA,
+          userVaultTokenAccount: userTokenAccount,
+          signer: this.wallet.publicKey,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          stakePoolProgram: STAKE_POOL_PROGRAM,
+        })
+        .remainingAccounts(remainingAccounts)
+        .instruction();
+
+      const transaction = new Transaction().add(createAtaIx, depositIx);
+      return await this.program.provider.sendAndConfirm(transaction);
+    } else {
+      // ATA exists - use normal flow
+      return await this.program.methods
+        .deposit(amount)
+        .accounts({
+          mint: MINT_PDA,
+          vault: VAULT_PDA,
+          userVaultTokenAccount: userTokenAccount,
+          signer: this.wallet.publicKey,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          stakePoolProgram: STAKE_POOL_PROGRAM,
+        })
+        .remainingAccounts(remainingAccounts)
+        .rpc();
+    }
   }
 
   async withdraw(sharesAmount: number) {

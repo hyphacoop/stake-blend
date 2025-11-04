@@ -126,25 +126,6 @@ export default function StakeBlendDemo() {
     }
   };
 
-  const handleCreateAccount = async () => {
-    if (!client) return;
-    
-    setLoading(true);
-    setError('');
-    setStatus('Creating user account...');
-    
-    try {
-      await client.createUserAccount();
-      setStatus('✅ User account created!');
-      await loadBalances();
-    } catch (err: any) {
-      setError(`Failed to create account: ${err.message}`);
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleDeposit = async () => {
     if (!client || !depositAmount) return;
     
@@ -226,20 +207,6 @@ export default function StakeBlendDemo() {
         <div className="button-group">
           <button className="terminal-button" onClick={loadBalances} disabled={loading}>
             [↻] Refresh Balances
-          </button>
-        </div>
-      </div>
-
-      <div className="section">
-        <div className="section-header">
-          <span className="prompt">$</span> setup.init
-        </div>
-        <div style={{fontSize: '0.85rem', color: '#88ff88', marginBottom: '1rem', fontStyle: 'italic'}}>
-          <span className="prompt">[!]</span> First-time setup (run once)
-        </div>
-        <div className="button-group">
-          <button className="terminal-button" onClick={handleCreateAccount} disabled={loading}>
-            [+] Create User Account
           </button>
         </div>
       </div>
