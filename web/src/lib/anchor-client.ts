@@ -31,36 +31,6 @@ export class StakeBlendClient {
     );
   }
 
-  async initializeVault() {
-    const remainingAccounts = [];
-    
-    for (const pool of POOLS) {
-      const vaultPoolTokenAccount = await getAssociatedTokenAddress(
-        pool.poolMint,
-        VAULT_PDA,
-        true
-      );
-      
-      remainingAccounts.push(
-        { pubkey: pool.stakePool, isSigner: false, isWritable: false },
-        { pubkey: pool.poolMint, isSigner: false, isWritable: false },
-        { pubkey: vaultPoolTokenAccount, isSigner: false, isWritable: true }
-      );
-    }
-
-    return await this.program.methods
-      .initialize(ALLOCATIONS)
-      .accounts({
-        mint: MINT_PDA,
-        vault: VAULT_PDA,
-        signer: this.wallet.publicKey,
-        systemProgram: anchor.web3.SystemProgram.programId,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-      })
-      .remainingAccounts(remainingAccounts)
-      .rpc();
-  }
 
   async deposit(amountSOL: number) {
     const userTokenAccount = await getAssociatedTokenAddress(

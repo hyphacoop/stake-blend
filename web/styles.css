@@ -337,6 +337,42 @@ body {
 
 
 /* ============================================
+   TAB NAVIGATION
+   ============================================ */
+.tab-group {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    z-index: 1;
+}
+
+.tab-button {
+    background: transparent;
+    border: 2px solid #33ff33;
+    color: #33ff33;
+    padding: 0.75rem 1.5rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+}
+
+.tab-button:hover {
+    background: rgba(51, 255, 51, 0.1);
+    box-shadow: 0 0 10px rgba(51, 255, 51, 0.3);
+}
+
+.tab-button.active {
+    background: rgba(51, 255, 51, 0.2);
+    box-shadow: 0 0 15px rgba(51, 255, 51, 0.4);
+    border-width: 3px;
+}
+
+
+/* ============================================
    FORM ELEMENTS - BUTTONS
    ============================================ */
 .button-group {
@@ -450,6 +486,35 @@ body {
 
 .log-timestamp {
     color: #88ff88;
+}
+
+
+/* ============================================
+   BALANCE SECTION
+   ============================================ */
+.balance-section {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    background: rgba(51, 255, 51, 0.05);
+    border: 2px solid #33ff33;
+    border-radius: 4px;
+    position: relative;
+    z-index: 1;
+}
+
+.balance-section-header {
+    color: #ffaa00;
+    font-weight: 700;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+}
+
+.refresh-info {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(51, 255, 51, 0.3);
+    text-align: right;
 }
 
 
