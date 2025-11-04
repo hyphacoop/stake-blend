@@ -1,7 +1,7 @@
 import * as anchor from '@coral-xyz/anchor';
 import { Connection, PublicKey, SYSVAR_CLOCK_PUBKEY, SYSVAR_STAKE_HISTORY_PUBKEY, StakeProgram, Transaction } from '@solana/web3.js';
 import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction } from '@solana/spl-token';
-import { PROGRAM_ID, STAKE_POOL_PROGRAM, POOLS, ALLOCATIONS, MINT_PDA, VAULT_PDA } from './program-config';
+import { PROGRAM_ID, STAKE_POOL_PROGRAM, POOLS, ALLOCATIONS, MINT_PDA, VAULT_PDA, VAULT_ID } from './program-config';
 import type { StakeBlend } from './stake_blend';
 import idl from './stake_blend.json';
 
@@ -73,7 +73,7 @@ export class StakeBlendClient {
       );
 
       const depositIx = await this.program.methods
-        .deposit(amount)
+        .deposit(new anchor.BN(VAULT_ID), amount)
         .accounts({
           mint: MINT_PDA,
           vault: VAULT_PDA,
@@ -91,7 +91,7 @@ export class StakeBlendClient {
     } else {
       // ATA exists - use normal flow
       return await this.program.methods
-        .deposit(amount)
+        .deposit(new anchor.BN(VAULT_ID), amount)
         .accounts({
           mint: MINT_PDA,
           vault: VAULT_PDA,
@@ -133,7 +133,7 @@ export class StakeBlendClient {
     }
 
     return await this.program.methods
-      .withdraw(shares)
+      .withdraw(new anchor.BN(VAULT_ID), shares)
       .accounts({
         mint: MINT_PDA,
         vault: VAULT_PDA,

@@ -8,7 +8,7 @@ use anchor_spl::associated_token::AssociatedToken;
 use crate::state::*;
 
 #[derive(Accounts)]
-#[instruction(allocations: Vec<u16>)]
+#[instruction(vault_id: u64, allocations: Vec<u16>)]
 pub struct Initialize<'info> {
     #[account(
         init,
@@ -16,7 +16,7 @@ pub struct Initialize<'info> {
         mint::decimals = 6,
         mint::authority = mint.key(),
         mint::freeze_authority = mint.key(),
-        seeds = [b"mint"],
+        seeds = [b"mint", vault_id.to_le_bytes().as_ref()],
         bump
     )]
     pub mint: InterfaceAccount<'info, Mint>,
@@ -24,7 +24,7 @@ pub struct Initialize<'info> {
         init,
         payer = signer,
         space = 8 + Vault::INIT_SPACE,
-        seeds = [b"vault"],
+        seeds = [b"vault", vault_id.to_le_bytes().as_ref()],
         bump
     )]
     pub vault: Account<'info, Vault>,
@@ -38,7 +38,7 @@ pub struct Initialize<'info> {
 }
 
 pub fn handler<'c: 'info, 'info>(
-    ctx: Context<'_, '_, 'c, 'info, Initialize<'info>>, allocations: Vec<u16>
+    ctx: Context<'_, '_, 'c, 'info, Initialize<'info>>, vault_id: u64, allocations: Vec<u16>
 ) -> Result<()> {
     let vault = &mut ctx.accounts.vault;
     
@@ -97,13 +97,14 @@ pub fn handler<'c: 'info, 'info>(
     }
 
     // Initialize vault state
+    vault.vault_id = vault_id;
     vault.stake_pools = stake_pools;
     vault.pool_mints = pool_mints;
     vault.allocations = allocations;
     vault.total_shares_issued = 0;
     vault.bump = ctx.bumps.vault;
 
-    msg!("Vault initialized with {} stake pools", total_pools);
+    msg!("Vault {} initialized with {} stake pools", vault_id, total_pools);
 
     Ok(())
 }

@@ -17,11 +17,12 @@ describe("stake-blend: ATA Auto-Creation (E2E)", () => {
   anchor.setProvider(provider);
 
   const program = anchor.workspace.StakeBlend as Program<StakeBlend>;
-  const { mintPda, vaultPda } = getPDAs(program.programId);
+  const vaultId = 0;
+  const { mintPda, vaultPda } = getPDAs(program.programId, vaultId);
 
   // Initialize vault before tests (but NOT user account - we want to test auto-creation)
   before(async () => {
-    await ensureVaultInitialized(program, provider);
+    await ensureVaultInitialized(program, provider, vaultId);
     console.log("\n🧪 Testing ATA Auto-Creation Flow...\n");
   });
 
@@ -66,7 +67,7 @@ describe("stake-blend: ATA Auto-Creation (E2E)", () => {
 
       // Get deposit instruction
       const depositIx = await program.methods
-        .deposit(depositAmount)
+        .deposit(new anchor.BN(vaultId), depositAmount)
         .accounts({
           mint: mintPda,
           vault: vaultPda,
@@ -91,7 +92,7 @@ describe("stake-blend: ATA Auto-Creation (E2E)", () => {
       // ATA exists - just deposit
       console.log("ATA already exists - depositing normally");
       await program.methods
-        .deposit(depositAmount)
+        .deposit(new anchor.BN(vaultId), depositAmount)
         .accounts({
           mint: mintPda,
           vault: vaultPda,
@@ -153,7 +154,7 @@ describe("stake-blend: ATA Auto-Creation (E2E)", () => {
     // Since ATA exists, just deposit (no createATA instruction)
     console.log("Depositing without createATA instruction...");
     await program.methods
-      .deposit(depositAmount)
+      .deposit(new anchor.BN(vaultId), depositAmount)
       .accounts({
         mint: mintPda,
         vault: vaultPda,

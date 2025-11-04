@@ -3,6 +3,7 @@ use anchor_lang::prelude::*;
 #[account]
 #[derive(InitSpace)]
 pub struct Vault {
+    pub vault_id: u64,
     #[max_len(10)] // reasonable max of 10 stake pools
     pub stake_pools: Vec<Pubkey>,
     #[max_len(10)]

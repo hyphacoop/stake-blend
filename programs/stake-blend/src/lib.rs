@@ -14,27 +14,30 @@ pub mod stake_blend {
 
     pub fn initialize<'c: 'info, 'info>(
         ctx: Context<'_, '_, 'c, 'info, Initialize<'info>>,
+        vault_id: u64,
         allocations: Vec<u16>,
     ) -> Result<()> {
-        initialize::handler(ctx, allocations)
+        initialize::handler(ctx, vault_id, allocations)
     }
 
-    pub fn create_user_account(ctx: Context<CreateUserAccount>) -> Result<()> {
-        create_user_account::handler(ctx)
+    pub fn create_user_account(ctx: Context<CreateUserAccount>, vault_id: u64) -> Result<()> {
+        create_user_account::handler(ctx, vault_id)
     }
 
     pub fn deposit<'c: 'info, 'info>(
         ctx: Context<'_, '_, 'c, 'info, Deposit<'info>>,
+        vault_id: u64,
         amount: u64,
     ) -> Result<()> {
-        deposit::handler(ctx, amount)
+        deposit::handler(ctx, vault_id, amount)
     }
 
     pub fn withdraw<'c: 'info, 'info>(
         ctx: Context<'_, '_, 'c, 'info, Withdraw<'info>>,
+        vault_id: u64,
         shares: u64,
     ) -> Result<()> {
-        withdraw::handler(ctx, shares)
+        withdraw::handler(ctx, vault_id, shares)
     }
 }
 

@@ -28,14 +28,17 @@ export const expectedAllocations = [70_00, 30_00];
 
 export const STAKE_POOL_PROGRAM = new anchor.web3.PublicKey("SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy");
 
-export function getPDAs(programId: anchor.web3.PublicKey) {
+export function getPDAs(programId: anchor.web3.PublicKey, vaultId: number = 0) {
+  const vaultIdBuffer = Buffer.alloc(8);
+  vaultIdBuffer.writeBigUInt64LE(BigInt(vaultId));
+
   const [mintPda] = anchor.web3.PublicKey.findProgramAddressSync(
-    [Buffer.from("mint")],
+    [Buffer.from("mint"), vaultIdBuffer],
     programId
   );
 
   const [vaultPda] = anchor.web3.PublicKey.findProgramAddressSync(
-    [Buffer.from("vault")],
+    [Buffer.from("vault"), vaultIdBuffer],
     programId
   );
 
@@ -47,16 +50,17 @@ export function getPDAs(programId: anchor.web3.PublicKey) {
  */
 export async function ensureVaultInitialized(
   program: Program<StakeBlend>,
-  provider: anchor.AnchorProvider
+  provider: anchor.AnchorProvider,
+  vaultId: number = 0
 ) {
-  const { mintPda, vaultPda } = getPDAs(program.programId);
+  const { mintPda, vaultPda } = getPDAs(program.programId, vaultId);
 
   try {
     await program.account.vault.fetch(vaultPda);
-    console.log("✓ Vault already initialized");
+    console.log(`✓ Vault ${vaultId} already initialized`);
     return;
   } catch (error) {
-    console.log("Initializing vault...");
+    console.log(`Initializing vault ${vaultId}...`);
   }
 
   const remainingAccounts = [];
@@ -75,7 +79,7 @@ export async function ensureVaultInitialized(
   }
 
   await program.methods
-    .initialize(expectedAllocations)
+    .initialize(new anchor.BN(vaultId), expectedAllocations)
     .accounts({
       mint: mintPda,
       vault: vaultPda,
@@ -87,7 +91,7 @@ export async function ensureVaultInitialized(
     .remainingAccounts(remainingAccounts)
     .rpc();
 
-  console.log("✓ Vault initialized");
+  console.log(`✓ Vault ${vaultId} initialized`);
 }
 
 /**
@@ -95,9 +99,10 @@ export async function ensureVaultInitialized(
  */
 export async function ensureUserAccountCreated(
   program: Program<StakeBlend>,
-  provider: anchor.AnchorProvider
+  provider: anchor.AnchorProvider,
+  vaultId: number = 0
 ) {
-  const { mintPda } = getPDAs(program.programId);
+  const { mintPda } = getPDAs(program.programId, vaultId);
   const userTokenAccount = getAssociatedTokenAddressSync(
     mintPda,
     provider.wallet.publicKey
@@ -105,14 +110,14 @@ export async function ensureUserAccountCreated(
 
   try {
     await provider.connection.getTokenAccountBalance(userTokenAccount);
-    console.log("✓ User token account exists");
+    console.log(`✓ User token account exists for vault ${vaultId}`);
     return;
   } catch (error) {
-    console.log("Creating user token account...");
+    console.log(`Creating user token account for vault ${vaultId}...`);
   }
 
   await program.methods
-    .createUserAccount()
+    .createUserAccount(new anchor.BN(vaultId))
     .accounts({
       tokenAccount: userTokenAccount,
       signer: provider.wallet.publicKey,
@@ -123,7 +128,7 @@ export async function ensureUserAccountCreated(
     })
     .rpc();
 
-  console.log("✓ User token account created");
+  console.log(`✓ User token account created for vault ${vaultId}`);
 }
 
 /**
@@ -131,10 +136,11 @@ export async function ensureUserAccountCreated(
  */
 export async function setupTests(
   program: Program<StakeBlend>,
-  provider: anchor.AnchorProvider
+  provider: anchor.AnchorProvider,
+  vaultId: number = 0
 ) {
-  await ensureVaultInitialized(program, provider);
-  await ensureUserAccountCreated(program, provider);
+  await ensureVaultInitialized(program, provider, vaultId);
+  await ensureUserAccountCreated(program, provider, vaultId);
 }
 
 /**
@@ -161,9 +167,10 @@ export async function getATAInfo(
  */
 export async function ensureUserAccountDoesNotExist(
   program: Program<StakeBlend>,
-  provider: anchor.AnchorProvider
+  provider: anchor.AnchorProvider,
+  vaultId: number = 0
 ) {
-  const { mintPda } = getPDAs(program.programId);
+  const { mintPda } = getPDAs(program.programId, vaultId);
   const userTokenAccount = getAssociatedTokenAddressSync(
     mintPda,
     provider.wallet.publicKey

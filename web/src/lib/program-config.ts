@@ -22,13 +22,25 @@ export const POOLS = [
 
 export const ALLOCATIONS = [7000, 3000]; // 70% / 30% split
 
+// Vault ID - Change this to interact with different vaults
+// Vault 0 = existing mainnet vault (bSOL + SaveSOL)
+// Vault 1+ = new vaults with different token configurations
+export const VAULT_ID = 0;
+
+// Helper to convert vault ID to bytes for PDA derivation
+function vaultIdToBytes(vaultId: number): Buffer {
+  const buffer = Buffer.alloc(8);
+  buffer.writeBigUInt64LE(BigInt(vaultId));
+  return buffer;
+}
+
 // PDAs
 export const [MINT_PDA] = PublicKey.findProgramAddressSync(
-  [Buffer.from("mint")],
+  [Buffer.from("mint"), vaultIdToBytes(VAULT_ID)],
   PROGRAM_ID
 );
 
 export const [VAULT_PDA] = PublicKey.findProgramAddressSync(
-  [Buffer.from("vault")], 
+  [Buffer.from("vault"), vaultIdToBytes(VAULT_ID)],
   PROGRAM_ID
 );

@@ -9,16 +9,17 @@ use crate::state::*;
 use crate::StakeBlendError;
 
 #[derive(Accounts)]
+#[instruction(vault_id: u64)]
 pub struct Deposit<'info> {
     #[account(
         mut,
-        seeds = [b"mint"],
+        seeds = [b"mint", vault_id.to_le_bytes().as_ref()],
         bump
     )]
     pub mint: InterfaceAccount<'info, token_interface::Mint>,
     #[account(
         mut,
-        seeds = [b"vault"],
+        seeds = [b"vault", vault_id.to_le_bytes().as_ref()],
         bump
     )]
     pub vault: Account<'info, Vault>,
@@ -46,10 +47,12 @@ struct PoolAccounts<'info> {
 
 pub fn handler<'c: 'info, 'info>(
     ctx: Context<'_, '_, 'c, 'info, Deposit<'info>>,
+    vault_id: u64,
     amount: u64
 ) -> Result<()> {
     let mint_bump = ctx.bumps.mint;
-    let mint_signer_seeds: &[&[&[u8]]] = &[&[b"mint", &[mint_bump]]];
+    let vault_id_bytes = vault_id.to_le_bytes();
+    let mint_signer_seeds: &[&[&[u8]]] = &[&[b"mint", vault_id_bytes.as_ref(), &[mint_bump]]];
 
     // Validate account structure
     let total_pools = ctx.accounts.vault.stake_pools.len();

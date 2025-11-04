@@ -12,12 +12,13 @@ describe("stake-blend", () => {
 
   const program = anchor.workspace.StakeBlend as Program<StakeBlend>;
 
+  const vaultId = 0; // Use vault 0 for all tests
   // Get PDAs
-  const { mintPda, vaultPda } = getPDAs(program.programId);
+  const { mintPda, vaultPda } = getPDAs(program.programId, vaultId);
 
   // Initialize vault and user account before tests
   before(async () => {
-    await setupTests(program, provider);
+    await setupTests(program, provider, vaultId);
   });
 
   // Helper function to get LST token value in SOL
@@ -111,7 +112,7 @@ describe("stake-blend", () => {
     }
 
     await program.methods
-      .deposit(depositAmount)
+      .deposit(new anchor.BN(vaultId), depositAmount)
       .accounts({
         mint: mintPda,
         vault: vaultPda,
@@ -162,7 +163,7 @@ describe("stake-blend", () => {
     const userSolBefore = await provider.connection.getBalance(provider.wallet.publicKey);
 
     await program.methods
-      .withdraw(sharesToWithdraw)
+      .withdraw(new anchor.BN(vaultId), sharesToWithdraw)
       .accounts({
         mint: mintPda,
         vault: vaultPda,
@@ -218,7 +219,7 @@ describe("stake-blend", () => {
 
     try {
       await program.methods
-        .deposit(depositAmount)
+        .deposit(new anchor.BN(vaultId), depositAmount)
         .accounts({
           mint: mintPda,
           vault: vaultPda,
@@ -274,7 +275,7 @@ describe("stake-blend", () => {
 
     try {
       await program.methods
-        .deposit(depositAmount)
+        .deposit(new anchor.BN(vaultId), depositAmount)
         .accounts({
           mint: mintPda,
           vault: vaultPda,
@@ -327,7 +328,7 @@ describe("stake-blend", () => {
 
     try {
       await program.methods
-        .deposit(depositAmount)
+        .deposit(new anchor.BN(vaultId), depositAmount)
         .accounts({
           mint: mintPda,
           vault: vaultPda,
@@ -380,7 +381,7 @@ describe("stake-blend", () => {
 
     try {
       await program.methods
-        .deposit(depositAmount)
+        .deposit(new anchor.BN(vaultId), depositAmount)
         .accounts({
           mint: mintPda,
           vault: vaultPda,
@@ -430,7 +431,7 @@ describe("stake-blend", () => {
       }
 
       await program.methods
-        .deposit(depositAmount)
+        .deposit(new anchor.BN(vaultId), depositAmount)
         .accounts({
           mint: mintPda,
           vault: vaultPda,
@@ -478,7 +479,7 @@ describe("stake-blend", () => {
     const userSolBefore = await provider.connection.getBalance(provider.wallet.publicKey);
 
     await program.methods
-      .withdraw(sharesToWithdraw)
+      .withdraw(new anchor.BN(vaultId), sharesToWithdraw)
       .accounts({
         mint: mintPda,
         vault: vaultPda,

@@ -20,12 +20,13 @@ describe("stake-blend property tests", () => {
 
   const program = anchor.workspace.StakeBlend as Program<StakeBlend>;
 
+  const vaultId = 0;
   // Get PDAs
-  const { mintPda, vaultPda } = getPDAs(program.programId);
+  const { mintPda, vaultPda } = getPDAs(program.programId, vaultId);
 
   // Initialize vault and user account before tests
   before(async () => {
-    await setupTests(program, provider);
+    await setupTests(program, provider, vaultId);
   });
 
   // ============================================================================
@@ -136,7 +137,7 @@ describe("stake-blend property tests", () => {
     );
 
     await program.methods
-      .deposit(new anchor.BN(amount.toString()))
+      .deposit(new anchor.BN(vaultId), new anchor.BN(amount.toString()))
       .accounts({
         mint: mintPda,
         vault: vaultPda,
@@ -157,7 +158,7 @@ describe("stake-blend property tests", () => {
     );
 
     await program.methods
-      .withdraw(new anchor.BN(shares.toString()))
+      .withdraw(new anchor.BN(vaultId), new anchor.BN(shares.toString()))
       .accounts({
         mint: mintPda,
         vault: vaultPda,
@@ -437,7 +438,7 @@ describe("stake-blend property tests", () => {
 
             try {
               await program.methods
-                .deposit(depositAmount)
+                .deposit(new anchor.BN(vaultId), depositAmount)
                 .accounts({
                   mint: mintPda,
                   vault: vaultPda,
@@ -498,7 +499,7 @@ describe("stake-blend property tests", () => {
 
             try {
               await program.methods
-                .deposit(depositAmount)
+                .deposit(new anchor.BN(vaultId), depositAmount)
                 .accounts({
                   mint: mintPda,
                   vault: vaultPda,
@@ -536,7 +537,7 @@ describe("stake-blend property tests", () => {
 
         try {
           await program.methods
-            .deposit(depositAmount)
+            .deposit(new anchor.BN(vaultId), depositAmount)
             .accounts({
               mint: mintPda,
               vault: vaultPda,
@@ -572,7 +573,7 @@ describe("stake-blend property tests", () => {
 
         try {
           await program.methods
-            .deposit(depositAmount)
+            .deposit(new anchor.BN(vaultId), depositAmount)
             .accounts({
               mint: mintPda,
               vault: vaultPda,
