@@ -1,6 +1,6 @@
 import * as anchor from '@coral-xyz/anchor';
 import { Connection, PublicKey, SYSVAR_CLOCK_PUBKEY, SYSVAR_STAKE_HISTORY_PUBKEY, StakeProgram, Transaction } from '@solana/web3.js';
-import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction } from '@solana/spl-token';
+import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID} from '@solana/spl-token';
 import { PROGRAM_ID, STAKE_POOL_PROGRAM, POOLS, ALLOCATIONS, MINT_PDA, VAULT_PDA, VAULT_ID } from './program-config';
 import type { StakeBlend } from './stake_blend';
 import idl from './stake_blend.json';
@@ -65,12 +65,23 @@ export class StakeBlendClient {
 
     if (!ataExists) {
       // ATA doesn't exist - build transaction with both createATA and deposit instructions
-      const createAtaIx = createAssociatedTokenAccountInstruction(
-        this.wallet.publicKey, // payer
-        userTokenAccount,       // ata
-        this.wallet.publicKey, // owner
-        MINT_PDA               // mint
-      );
+      // const createAtaIx = createAssociatedTokenAccountInstruction(
+      //   this.wallet.publicKey, // payer
+      //   userTokenAccount,       // ata
+      //   this.wallet.publicKey, // owner
+      //   MINT_PDA               // mint
+      // );
+      const createAtaIx = await this.program.methods
+       .createUserAccount(new anchor.BN(VAULT_ID))
+       .accounts({
+         tokenAccount: userTokenAccount,
+         signer: this.wallet.publicKey,
+         mint: MINT_PDA,
+         systemProgram: anchor.web3.SystemProgram.programId,
+         tokenProgram: TOKEN_PROGRAM_ID,
+         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+       }).instruction();
+
 
       const depositIx = await this.program.methods
         .deposit(new anchor.BN(VAULT_ID), amount)
