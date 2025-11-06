@@ -112,7 +112,7 @@ export class StakeBlendClient {
       this.wallet.publicKey
     );
     
-    const shares = new anchor.BN(sharesAmount * 1e6);
+    const shares = new anchor.BN(sharesAmount * 1e9);
 
     const remainingAccounts = [];
     for (const pool of POOLS) {
@@ -162,7 +162,7 @@ export class StakeBlendClient {
       
       return {
         sol: solBalance / 1e9,
-        vaultShares: parseFloat(tokenBalance.value.amount) / 1e6
+        vaultShares: parseFloat(tokenBalance.value.amount) / 1e9
       };
     } catch (error) {
       return {

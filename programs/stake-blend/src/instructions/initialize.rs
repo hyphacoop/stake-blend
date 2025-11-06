@@ -13,7 +13,7 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = signer,
-        mint::decimals = 6,
+        mint::decimals = 9,
         mint::authority = mint.key(),
         mint::freeze_authority = mint.key(),
         seeds = [b"mint", vault_id.to_le_bytes().as_ref()],

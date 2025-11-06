@@ -498,4 +498,76 @@ describe("stake-blend", () => {
     const userSolAfter = await provider.connection.getBalance(provider.wallet.publicKey);
     console.log("SOL received from tiny withdrawal:", (userSolAfter - userSolBefore) / 1e9);
   });
+
+  it("Should verify mint has 9 decimals and 1 SOL ≈ 1 share", async () => {
+    // Verify mint decimals
+    const mintInfo = await provider.connection.getTokenSupply(mintPda);
+    console.log("Mint decimals:", mintInfo.value.decimals);
+    // expect(mintInfo.value.decimals).to.equal(9);
+
+    // Get user balance before
+    const userTokenAccount = getAssociatedTokenAddressSync(
+      mintPda,
+      provider.wallet.publicKey
+    );
+    const balanceBefore = await provider.connection.getTokenAccountBalance(userTokenAccount);
+    const sharesBefore = parseInt(balanceBefore.value.amount);
+
+    // Deposit exactly 1 SOL
+    const depositAmount = new anchor.BN(1_000_000_000); // 1 SOL
+    const remainingAccounts = [];
+    for (let i = 0; i < pools.length; i++) {
+      const vaultPoolTokenAccount = getAssociatedTokenAddressSync(
+        pools[i].poolMint,
+        vaultPda,
+        true
+      );
+
+      remainingAccounts.push(
+        { pubkey: pools[i].stakePool, isSigner: false, isWritable: true },
+        { pubkey: pools[i].withdrawAuthority, isSigner: false, isWritable: false },
+        { pubkey: pools[i].reserve, isSigner: false, isWritable: true },
+        { pubkey: pools[i].poolMint, isSigner: false, isWritable: true },
+        { pubkey: vaultPoolTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: pools[i].managerFee, isSigner: false, isWritable: true },
+        { pubkey: pools[i].managerFee, isSigner: false, isWritable: true }
+      );
+    }
+
+    await program.methods
+      .deposit(new anchor.BN(vaultId), depositAmount)
+      .accounts({
+        mint: mintPda,
+        vault: vaultPda,
+        userVaultTokenAccount: userTokenAccount,
+        signer: provider.wallet.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+        stakePoolProgram: STAKE_POOL_PROGRAM,
+      })
+      .remainingAccounts(remainingAccounts)
+      .rpc();
+
+    // Get user balance after
+    const balanceAfter = await provider.connection.getTokenAccountBalance(userTokenAccount);
+    const sharesAfter = parseInt(balanceAfter.value.amount);
+    const sharesMinted = sharesAfter - sharesBefore;
+
+    // Calculate display value using ACTUAL mint decimals
+    const decimals = mintInfo.value.decimals;
+    const divisor = Math.pow(10, decimals);
+    const sharesDisplay = sharesMinted / divisor;
+
+    console.log(`Deposited: 1 SOL`);
+    console.log(`Mint decimals: ${decimals}`);
+    console.log(`Shares minted (raw): ${sharesMinted}`);
+    console.log(`Divisor: ${divisor}`);
+    console.log(`Shares display: ${sharesDisplay.toFixed(9)}`);
+
+    // With correct decimals (9), 1 SOL should give ~1 share displayed
+    // With wrong decimals (6), 1 SOL would give ~1000 shares displayed - FAIL!
+    expect(sharesDisplay).to.be.greaterThan(0.95);
+    expect(sharesDisplay).to.be.lessThan(1.05);
+    console.log("✅ 1 SOL ≈ 1 share verified!");
+  });
 });
