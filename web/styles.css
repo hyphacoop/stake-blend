@@ -313,6 +313,14 @@ body {
     display: block;
 }
 
+.input-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    max-width: 400px;
+    width: 100%;
+}
+
 .terminal-input {
     background: rgba(51, 255, 51, 0.05);
     border: 2px solid #33ff33;
@@ -321,9 +329,12 @@ body {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.95rem;
     width: 100%;
-    max-width: 400px;
     outline: none;
     transition: all 0.2s;
+}
+
+.terminal-input.with-max-button {
+    padding-right: 6rem;
 }
 
 .terminal-input:focus {
@@ -333,6 +344,43 @@ body {
 
 .terminal-input::placeholder {
     color: rgba(51, 255, 51, 0.3);
+}
+
+/* Style number input spinner arrows */
+.terminal-input[type="number"]::-webkit-inner-spin-button,
+.terminal-input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.terminal-input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+.max-button {
+    position: absolute;
+    right: 0.5rem;
+    background: transparent;
+    border: 2px solid #ff3333;
+    color: #ff3333;
+    padding: 0.4rem 0.75rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+}
+
+.max-button:hover:not(:disabled) {
+    background: rgba(255, 51, 51, 0.1);
+    box-shadow: 0 0 10px rgba(255, 51, 51, 0.4);
+}
+
+.max-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 

@@ -28,6 +28,7 @@ export default function StakeBlendDemo() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string>('');
   const [error, setError] = useState<string>('');
+  const [txSignature, setTxSignature] = useState<string>('');
   const [poolsWithMetadata, setPoolsWithMetadata] = useState<PoolWithMetadata[]>([]);
   const [metadataLoading, setMetadataLoading] = useState(true);
   const [aggregateAPY, setAggregateAPY] = useState<number | null>(null);
@@ -135,24 +136,30 @@ export default function StakeBlendDemo() {
 
   const handleDeposit = async () => {
     if (!client || !depositAmount) return;
-    
+
     const amount = parseFloat(depositAmount);
     if (isNaN(amount) || amount <= 0) {
       setError('Invalid deposit amount');
       return;
     }
-    
+
     setLoading(true);
     setError('');
+    setTxSignature('');
     setStatus(`Depositing ${amount} SOL...`);
-    
+
     try {
-      await client.deposit(amount);
+      const signature = await client.deposit(amount);
+      setTxSignature(signature);
       setStatus(`✅ Deposited ${amount} SOL successfully!`);
       setDepositAmount('');
       await loadBalances();
     } catch (err: any) {
       setError(`Failed to deposit: ${err.message}`);
+      // Try to extract transaction signature from error if available
+      if (err.signature) {
+        setTxSignature(err.signature);
+      }
       console.error(err);
     } finally {
       setLoading(false);
@@ -161,24 +168,30 @@ export default function StakeBlendDemo() {
 
   const handleWithdraw = async () => {
     if (!client || !withdrawAmount) return;
-    
+
     const shares = parseFloat(withdrawAmount);
     if (isNaN(shares) || shares <= 0) {
       setError('Invalid withdrawal amount');
       return;
     }
-    
+
     setLoading(true);
     setError('');
+    setTxSignature('');
     setStatus(`Withdrawing ${shares} shares...`);
-    
+
     try {
-      await client.withdraw(shares);
+      const signature = await client.withdraw(shares);
+      setTxSignature(signature);
       setStatus(`✅ Withdrew ${shares} shares successfully!`);
       setWithdrawAmount('');
       await loadBalances();
     } catch (err: any) {
       setError(`Failed to withdraw: ${err.message}`);
+      // Try to extract transaction signature from error if available
+      if (err.signature) {
+        setTxSignature(err.signature);
+      }
       console.error(err);
     } finally {
       setLoading(false);
@@ -253,16 +266,25 @@ export default function StakeBlendDemo() {
             <label className="input-label">
               <span className="prompt">&gt;</span> Amount in SOL
             </label>
-            <input
-              className="terminal-input"
-              type="number"
-              value={depositAmount}
-              onChange={(e) => setDepositAmount(e.target.value)}
-              placeholder="0.00"
-              step="0.1"
-              min="0"
-              disabled={loading}
-            />
+            <div className="input-wrapper">
+              <input
+                className="terminal-input with-max-button"
+                type="number"
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+                placeholder="0.00"
+                step="0.1"
+                min="0"
+                disabled={loading}
+              />
+              <button
+                className="max-button"
+                onClick={() => setDepositAmount(balances.sol.toString())}
+                disabled={loading || balances.sol === 0}
+              >
+                [▶▶] MAX
+              </button>
+            </div>
           </div>
           <div className="button-group">
             <button className="terminal-button primary" onClick={handleDeposit} disabled={loading || !depositAmount}>
@@ -285,28 +307,30 @@ export default function StakeBlendDemo() {
             <label className="input-label">
               <span className="prompt">&gt;</span> Shares to withdraw
             </label>
-            <input
-              className="terminal-input"
-              type="number"
-              value={withdrawAmount}
-              onChange={(e) => setWithdrawAmount(e.target.value)}
-              placeholder="0.000000"
-              step="0.1"
-              min="0"
-              max={balances.vaultShares}
-              disabled={loading}
-            />
+            <div className="input-wrapper">
+              <input
+                className="terminal-input with-max-button"
+                type="number"
+                value={withdrawAmount}
+                onChange={(e) => setWithdrawAmount(e.target.value)}
+                placeholder="0.000000"
+                step="0.1"
+                min="0"
+                max={balances.vaultShares}
+                disabled={loading}
+              />
+              <button
+                className="max-button"
+                onClick={() => setWithdrawAmount(balances.vaultShares.toString())}
+                disabled={loading || balances.vaultShares === 0}
+              >
+                [▶▶] MAX
+              </button>
+            </div>
           </div>
           <div className="button-group">
             <button className="terminal-button warning" onClick={handleWithdraw} disabled={loading || !withdrawAmount}>
               [▶] Execute Withdraw
-            </button>
-            <button
-              className="terminal-button warning"
-              onClick={() => setWithdrawAmount(balances.vaultShares.toString())}
-              disabled={loading || balances.vaultShares === 0}
-            >
-              [▶▶] Withdraw All
             </button>
           </div>
         </div>
@@ -338,6 +362,24 @@ export default function StakeBlendDemo() {
             <span className="prompt">$</span> status
           </div>
           <p style={{color: '#33ff33', fontSize: '0.9rem'}}>{status}</p>
+          {txSignature && (
+            <div style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
+              <span style={{ color: '#88ff88' }}>Transaction: </span>
+              <a
+                href={`https://solscan.io/tx/${txSignature}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  color: '#33ff33',
+                  textDecoration: 'underline',
+                  wordBreak: 'break-all'
+                }}
+              >
+                {txSignature.slice(0, 8)}...{txSignature.slice(-8)}
+              </a>
+              <span style={{ color: '#88ff88', marginLeft: '0.5rem' }}>↗</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -347,6 +389,24 @@ export default function StakeBlendDemo() {
             <span className="prompt">$</span> error
           </div>
           <p style={{color: '#ff3333', fontSize: '0.9rem'}}>{error}</p>
+          {txSignature && (
+            <div style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
+              <span style={{ color: '#88ff88' }}>Transaction: </span>
+              <a
+                href={`https://solscan.io/tx/${txSignature}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  color: '#ff3333',
+                  textDecoration: 'underline',
+                  wordBreak: 'break-all'
+                }}
+              >
+                {txSignature.slice(0, 8)}...{txSignature.slice(-8)}
+              </a>
+              <span style={{ color: '#ff3333', marginLeft: '0.5rem' }}>↗</span>
+            </div>
+          )}
         </div>
       )}
 
