@@ -2,15 +2,15 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { StakeBlend } from "../target/types/stake_blend";
 import { expect } from "chai";
-import { getAssociatedTokenAddressSync, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
-import { pools, STAKE_POOL_PROGRAM, getPDAs, ensureVaultInitialized, getATAInfo } from './fixtures';
+import { getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { getPDAs, ensureVaultInitialized, getATAInfo } from './fixtures';
+import { StakeBlendClient } from '../web/src/lib/anchor-client';
 
 /**
  * E2E Tests for ATA Auto-Creation
  *
- * These tests verify that the UI client logic correctly auto-creates ATAs when needed.
- * We simulate the UI behavior by manually building transactions with createAssociatedTokenAccountInstruction
- * when the ATA doesn't exist.
+ * These tests verify that the StakeBlendClient correctly auto-creates ATAs when needed.
+ * The client is used exactly as it would be in the UI to ensure we're testing the real code path.
  */
 describe("stake-blend: ATA Auto-Creation (E2E)", () => {
   const provider = anchor.AnchorProvider.env();
@@ -20,102 +20,48 @@ describe("stake-blend: ATA Auto-Creation (E2E)", () => {
   const vaultId = 0;
   const { mintPda, vaultPda } = getPDAs(program.programId, vaultId);
 
-  // Initialize vault before tests (but NOT user account - we want to test auto-creation)
+  // Initialize the client (this is what the UI does)
+  let client: StakeBlendClient;
+
+  // Initialize vault and client before tests
   before(async () => {
     await ensureVaultInitialized(program, provider, vaultId);
-    console.log("\n🧪 Testing ATA Auto-Creation Flow...\n");
+
+    // Initialize the client (mimics UI behavior)
+    client = new StakeBlendClient(provider.connection, provider.wallet as anchor.Wallet);
+
+    console.log("\n🧪 Testing ATA Auto-Creation Flow with StakeBlendClient...\n");
   });
 
   it("Deposit with fresh wallet (no ATA) - should auto-create ATA", async () => {
-    // Step 1: Check if ATA exists
+    // Step 1: Check if ATA exists before deposit
     const ataInfoBefore = await getATAInfo(provider, mintPda, provider.wallet.publicKey);
     console.log(`ATA exists before deposit: ${ataInfoBefore.exists}`);
 
-    // Step 2: Build deposit transaction
-    const depositAmount = new anchor.BN(1_000_000_000); // 1 SOL
-    const remainingAccounts = [];
+    // Get balances before deposit
+    const balancesBefore = await client.getUserBalances();
+    console.log(`SOL balance before: ${balancesBefore.sol.toFixed(2)} SOL`);
+    console.log(`Vault shares before: ${balancesBefore.vaultShares.toFixed(6)} shares`);
 
-    for (let i = 0; i < pools.length; i++) {
-      const vaultPoolTokenAccount = getAssociatedTokenAddressSync(
-        pools[i].poolMint,
-        vaultPda,
-        true
-      );
+    // Step 2: Use the client to deposit (this is what the UI does!)
+    // The client will automatically handle ATA creation if needed
+    const depositAmountSOL = 1.0; // 1 SOL
+    console.log(`\n💰 Depositing ${depositAmountSOL} SOL via StakeBlendClient...`);
 
-      remainingAccounts.push(
-        { pubkey: pools[i].stakePool, isSigner: false, isWritable: true },
-        { pubkey: pools[i].withdrawAuthority, isSigner: false, isWritable: false },
-        { pubkey: pools[i].reserve, isSigner: false, isWritable: true },
-        { pubkey: pools[i].poolMint, isSigner: false, isWritable: true },
-        { pubkey: vaultPoolTokenAccount, isSigner: false, isWritable: true },
-        { pubkey: pools[i].managerFee, isSigner: false, isWritable: true },
-        { pubkey: pools[i].managerFee, isSigner: false, isWritable: true }
-      );
-    }
+    const txSig = await client.deposit(depositAmountSOL);
+    console.log(`✅ Transaction successful: ${txSig}`);
 
-    // Step 3: If ATA doesn't exist, we need to create it in the same transaction
-    if (!ataInfoBefore.exists) {
-      console.log("✨ ATA does not exist - creating in same transaction as deposit");
-
-      // Create ATA instruction
-      const createAtaIx = createAssociatedTokenAccountInstruction(
-        provider.wallet.publicKey, // payer
-        ataInfoBefore.address,      // ata
-        provider.wallet.publicKey,  // owner
-        mintPda                      // mint
-      );
-
-      // Get deposit instruction
-      const depositIx = await program.methods
-        .deposit(new anchor.BN(vaultId), depositAmount)
-        .accounts({
-          mint: mintPda,
-          vault: vaultPda,
-          userVaultTokenAccount: ataInfoBefore.address,
-          signer: provider.wallet.publicKey,
-          systemProgram: anchor.web3.SystemProgram.programId,
-          tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
-          stakePoolProgram: STAKE_POOL_PROGRAM,
-        })
-        .remainingAccounts(remainingAccounts)
-        .instruction();
-
-      // Combine both instructions in one transaction
-      const tx = new anchor.web3.Transaction();
-      tx.add(createAtaIx);
-      tx.add(depositIx);
-
-      // Send transaction
-      await provider.sendAndConfirm(tx);
-      console.log("✅ Transaction sent with both createATA and deposit instructions");
-    } else {
-      // ATA exists - just deposit
-      console.log("ATA already exists - depositing normally");
-      await program.methods
-        .deposit(new anchor.BN(vaultId), depositAmount)
-        .accounts({
-          mint: mintPda,
-          vault: vaultPda,
-          userVaultTokenAccount: ataInfoBefore.address,
-          signer: provider.wallet.publicKey,
-          systemProgram: anchor.web3.SystemProgram.programId,
-          tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
-          stakePoolProgram: STAKE_POOL_PROGRAM,
-        })
-        .remainingAccounts(remainingAccounts)
-        .rpc();
-    }
-
-    // Step 4: Verify ATA was created and user received shares
+    // Step 3: Verify ATA was created and user received shares
     const ataInfoAfter = await getATAInfo(provider, mintPda, provider.wallet.publicKey);
     expect(ataInfoAfter.exists).to.be.true;
     console.log("✅ ATA exists after deposit");
 
-    // Check user balance
-    const userBalance = await provider.connection.getTokenAccountBalance(ataInfoAfter.address);
-    const sharesReceived = parseInt(userBalance.value.amount);
-    expect(sharesReceived).to.be.greaterThan(0);
-    console.log(`✅ User received ${sharesReceived / 1e6} vault shares`);
+    // Step 4: Verify shares received using client method
+    const balancesAfter = await client.getUserBalances();
+    console.log(`Vault shares after: ${balancesAfter.vaultShares.toFixed(6)} shares`);
+
+    expect(balancesAfter.vaultShares).to.be.greaterThan(0);
+    console.log(`✅ User received ${balancesAfter.vaultShares.toFixed(6)} vault shares`);
   });
 
   it("Second deposit with existing ATA - should NOT create ATA again", async () => {
@@ -124,81 +70,43 @@ describe("stake-blend: ATA Auto-Creation (E2E)", () => {
     expect(ataInfoBefore.exists).to.be.true;
     console.log("✓ ATA already exists from previous deposit");
 
-    // Get balance before
-    const balanceBefore = await provider.connection.getTokenAccountBalance(ataInfoBefore.address);
-    const sharesBefore = parseInt(balanceBefore.value.amount);
-    console.log(`Balance before: ${sharesBefore / 1e6} shares`);
+    // Get balance before using client
+    const balancesBefore = await client.getUserBalances();
+    console.log(`Balance before: ${balancesBefore.vaultShares.toFixed(6)} shares`);
 
-    // Step 2: Deposit again (should skip ATA creation)
-    const depositAmount = new anchor.BN(500_000_000); // 0.5 SOL
-    const remainingAccounts = [];
+    // Step 2: Deposit again using client (should skip ATA creation internally)
+    const depositAmountSOL = 0.5; // 0.5 SOL
+    console.log(`\n💰 Depositing ${depositAmountSOL} SOL via StakeBlendClient...`);
 
-    for (let i = 0; i < pools.length; i++) {
-      const vaultPoolTokenAccount = getAssociatedTokenAddressSync(
-        pools[i].poolMint,
-        vaultPda,
-        true
-      );
-
-      remainingAccounts.push(
-        { pubkey: pools[i].stakePool, isSigner: false, isWritable: true },
-        { pubkey: pools[i].withdrawAuthority, isSigner: false, isWritable: false },
-        { pubkey: pools[i].reserve, isSigner: false, isWritable: true },
-        { pubkey: pools[i].poolMint, isSigner: false, isWritable: true },
-        { pubkey: vaultPoolTokenAccount, isSigner: false, isWritable: true },
-        { pubkey: pools[i].managerFee, isSigner: false, isWritable: true },
-        { pubkey: pools[i].managerFee, isSigner: false, isWritable: true }
-      );
-    }
-
-    // Since ATA exists, just deposit (no createATA instruction)
-    console.log("Depositing without createATA instruction...");
-    await program.methods
-      .deposit(new anchor.BN(vaultId), depositAmount)
-      .accounts({
-        mint: mintPda,
-        vault: vaultPda,
-        userVaultTokenAccount: ataInfoBefore.address,
-        signer: provider.wallet.publicKey,
-        systemProgram: anchor.web3.SystemProgram.programId,
-        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
-        stakePoolProgram: STAKE_POOL_PROGRAM,
-      })
-      .remainingAccounts(remainingAccounts)
-      .rpc();
-
+    const txSig = await client.deposit(depositAmountSOL);
+    console.log(`✅ Transaction successful: ${txSig}`);
     console.log("✅ Deposit succeeded without ATA creation");
 
-    // Step 3: Verify balance increased
-    const balanceAfter = await provider.connection.getTokenAccountBalance(ataInfoBefore.address);
-    const sharesAfter = parseInt(balanceAfter.value.amount);
-    console.log(`Balance after: ${sharesAfter / 1e6} shares`);
+    // Step 3: Verify balance increased using client
+    const balancesAfter = await client.getUserBalances();
+    console.log(`Balance after: ${balancesAfter.vaultShares.toFixed(6)} shares`);
 
-    expect(sharesAfter).to.be.greaterThan(sharesBefore);
-    console.log(`✅ Shares increased by ${(sharesAfter - sharesBefore) / 1e6}`);
+    expect(balancesAfter.vaultShares).to.be.greaterThan(balancesBefore.vaultShares);
+    const sharesAdded = balancesAfter.vaultShares - balancesBefore.vaultShares;
+    console.log(`✅ Shares increased by ${sharesAdded.toFixed(6)}`);
   });
 
-  it("Verify ATA auto-creation logic - getAccountInfo check", async () => {
-    // This test demonstrates the logic used in the UI client
-    const userTokenAccount = getAssociatedTokenAddressSync(
-      mintPda,
-      provider.wallet.publicKey
-    );
+  it("Verify client.getUserBalances() returns correct data", async () => {
+    // This test verifies the client's balance getter works correctly
+    const balances = await client.getUserBalances();
 
-    // Check if ATA exists (simulating UI logic)
-    const accountInfo = await provider.connection.getAccountInfo(userTokenAccount);
-    const ataExists = accountInfo !== null;
+    console.log(`SOL balance: ${balances.sol.toFixed(2)} SOL`);
+    console.log(`Vault shares: ${balances.vaultShares.toFixed(6)} shares`);
 
-    console.log(`ATA exists: ${ataExists}`);
-    console.log(`ATA address: ${userTokenAccount.toBase58()}`);
+    // At this point, we should have vault shares from previous tests
+    expect(balances.vaultShares).to.be.greaterThan(0);
+    expect(balances.sol).to.be.greaterThan(0);
 
-    // At this point in the test, ATA should exist from previous tests
-    expect(ataExists).to.be.true;
+    // Verify ATA exists (since we have shares)
+    const ataInfo = await getATAInfo(provider, mintPda, provider.wallet.publicKey);
+    expect(ataInfo.exists).to.be.true;
 
-    if (ataExists) {
-      console.log("✅ UI would skip ATA creation and deposit directly");
-    } else {
-      console.log("✅ UI would create ATA + deposit in single transaction");
-    }
+    console.log("✅ Client successfully returns user balances");
+    console.log("✅ ATA exists and contains vault shares");
   });
 });
