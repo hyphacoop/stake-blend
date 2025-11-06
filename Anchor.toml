@@ -34,19 +34,19 @@ upgradeable = false
 [test.validator]
 url = "https://api.mainnet-beta.solana.com"
 clone = [
-    # BSOL stake pool accounts
+    # JitoSOL (50%)
+    { address = "Jito4APyf642JPZPx3hGc6WWJ8zPKtRbRs4P815Awbb" }, # Stake pool
+    { address = "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn" },  # mint
+    { address = "BgKUXdS29YcHCFrPm5M8oLHiTzZaMDjsebggjoaQ6KFL" }, # Reserve stake account
+    { address = "6iQKfEyhr3bZMotVkW6beNZz5CPAkiwvgV2CTje9pVSS" }, # Withdraw authority
+    { address = "feeeFLLsam6xZJFc6UQFrHqkvVt4jfmVvi2BRLkUZ4i" }, # Manager fee account
+
+    # bSOL (50%)
     { address = "stk9ApL5HeVAwPLr3TLhDXdZS8ptVu7zp6ov8HFDuMi" }, # Stake pool
     { address = "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1" },  # mint
     { address = "rsrxDvYUXjH1RQj2Ke36LNZEVqGztATxFkqNukERqFT" }, # Reserve stake account
     { address = "6WecYymEARvjG5ZyqkrVQ6YkhPfujNzWpSPwNKXHCbV2" }, # Withdraw authority
     { address = "Dpo148tVGewDPyh2FkGV18gouWctbdX2fHJopJGe9xv1" }, # Manager fee account
-
-    # saveSOL stake pool accts
-    { address = "SAVEY1fVMBeRVo9V9rgEz8ENTvHreftd3QgpAKBDFV4" }, # Stake pool
-    { address = "SAVEDpx3nFNdzG3ymJfShYnrBuYy7LtQEABZQ3qtTFt" },  # mint
-    { address = "FL2AsvZPTW33QdmBgQx15ZdtaSbmuwY3oBCJMj63u9W1" }, # Reserve stake account
-    # { address = "9yWcz4S27nXKpsVmWqaimphCUnFo441JUvwkzmvRWys3" }, # Withdraw authority
-    { address = "5VyLWq6nGg8mkAsHUwn6KqnaTni6hFZHb6dGiV7dCtGz" }, # Manager fee account
 
     { address = "SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy" }, # Stake pool program
 ]

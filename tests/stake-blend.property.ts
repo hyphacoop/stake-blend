@@ -51,7 +51,10 @@ describe("stake-blend property tests", () => {
     const stakePoolAccount = await provider.connection.getAccountInfo(stakePoolPubkey);
     if (!stakePoolAccount) throw new Error("Stake pool account not found");
     const stakePool = StakePoolLayout.decode(stakePoolAccount.data);
-    return stakePool.totalLamports.toNumber() / stakePool.poolTokenSupply.toNumber();
+    // Use BigInt to avoid overflow when dealing with large numbers
+    const totalLamports = BigInt(stakePool.totalLamports.toString());
+    const poolTokenSupply = BigInt(stakePool.poolTokenSupply.toString());
+    return Number(totalLamports) / Number(poolTokenSupply);
   }
 
   async function getTotalVaultValue(): Promise<bigint> {

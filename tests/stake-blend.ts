@@ -26,7 +26,10 @@ describe("stake-blend", () => {
   async function getLSTValue(stakePoolPubkey: anchor.web3.PublicKey): Promise<number> {
     const stakePoolAccount = await provider.connection.getAccountInfo(stakePoolPubkey);
     const stakePool = StakePoolLayout.decode(stakePoolAccount.data);
-    return stakePool.totalLamports.toNumber() / stakePool.poolTokenSupply.toNumber();
+    // Use BigInt to avoid overflow when dealing with large numbers
+    const totalLamports = BigInt(stakePool.totalLamports.toString());
+    const poolTokenSupply = BigInt(stakePool.poolTokenSupply.toString());
+    return Number(totalLamports) / Number(poolTokenSupply);
   }
 
   // Helper function to validate VALUE distribution (not token distribution)

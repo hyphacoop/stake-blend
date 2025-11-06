@@ -9,22 +9,29 @@ import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 
 export const pools = [
   {
+    stakePool: new anchor.web3.PublicKey("Jito4APyf642JPZPx3hGc6WWJ8zPKtRbRs4P815Awbb"),
+    poolMint: new anchor.web3.PublicKey("J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"),
+    reserve: new anchor.web3.PublicKey("BgKUXdS29YcHCFrPm5M8oLHiTzZaMDjsebggjoaQ6KFL"),
+    withdrawAuthority: new anchor.web3.PublicKey("6iQKfEyhr3bZMotVkW6beNZz5CPAkiwvgV2CTje9pVSS"),
+    managerFee: new anchor.web3.PublicKey("feeeFLLsam6xZJFc6UQFrHqkvVt4jfmVvi2BRLkUZ4i"),
+  },
+  {
     stakePool: new anchor.web3.PublicKey("stk9ApL5HeVAwPLr3TLhDXdZS8ptVu7zp6ov8HFDuMi"),
     poolMint: new anchor.web3.PublicKey("bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1"),
     reserve: new anchor.web3.PublicKey("rsrxDvYUXjH1RQj2Ke36LNZEVqGztATxFkqNukERqFT"),
     withdrawAuthority: new anchor.web3.PublicKey("6WecYymEARvjG5ZyqkrVQ6YkhPfujNzWpSPwNKXHCbV2"),
     managerFee: new anchor.web3.PublicKey("Dpo148tVGewDPyh2FkGV18gouWctbdX2fHJopJGe9xv1"),
   },
-  {
-    stakePool: new anchor.web3.PublicKey("SAVEY1fVMBeRVo9V9rgEz8ENTvHreftd3QgpAKBDFV4"),
-    poolMint: new anchor.web3.PublicKey("SAVEDpx3nFNdzG3ymJfShYnrBuYy7LtQEABZQ3qtTFt"),
-    reserve: new anchor.web3.PublicKey("FL2AsvZPTW33QdmBgQx15ZdtaSbmuwY3oBCJMj63u9W1"),
-    withdrawAuthority: new anchor.web3.PublicKey("9yWcz4S27nXKpsVmWqaimphCUnFo441JUvwkzmvRWys3"),
-    managerFee: new anchor.web3.PublicKey("5VyLWq6nGg8mkAsHUwn6KqnaTni6hFZHb6dGiV7dCtGz"),
-  },
+  //{
+    //stakePool: new anchor.web3.PublicKey("AwDeTcW6BovNYR34Df1TPm4bFwswa4CJY4YPye2LXtPS"),
+    //poolMint: new anchor.web3.PublicKey("Comp4ssDzXcLeu2MnLuGNNFC4cmLPMng8qWHPvzAMU1h"),
+    //reserve: new anchor.web3.PublicKey("8H2xjMT543YWBLRjJ24BrQyBgFuQRU6MgENA3mqXoh7y"),
+    //withdrawAuthority: new anchor.web3.PublicKey("3SpAsJj9mXsDmwtaE6zSgEh78ZZE278TBnYgAAy5DHaM"),
+    //managerFee: new anchor.web3.PublicKey("HtnUV3JGo93Nz8G1WKRG7DR4N2raA9Sf62ahwZSdhruN"),
+  //},
 ];
 
-export const expectedAllocations = [70_00, 30_00];
+export const expectedAllocations = [50_00, 50_00];
 
 export const STAKE_POOL_PROGRAM = new anchor.web3.PublicKey("SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy");
 
