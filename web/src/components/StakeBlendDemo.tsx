@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import * as anchor from '@coral-xyz/anchor';
+import { PublicKey } from '@solana/web3.js';
 import { StakeBlendClient } from '../lib/anchor-client';
 import { tokenMetadataService, TokenMetadata } from '../lib/token-metadata';
 import { APYService, LSTAPYResult, formatAPY } from '../lib/apy-service';
-import { POOLS, ALLOCATIONS } from '../lib/program-config';
 
 interface Balances {
   sol: number;
@@ -75,27 +75,33 @@ export default function StakeBlendDemo() {
     return () => clearInterval(countdownInterval);
   }, [client]);
 
-  // Load token metadata and APYs on mount
+  // Load vault data, token metadata and APYs on mount
   useEffect(() => {
     const fetchMetadataAndAPYs = async () => {
+      if (!client) return;
+
       setMetadataLoading(true);
       try {
+        // Fetch vault data from on-chain
+        const vaultData = await client.getVaultData();
+        const poolAccounts = await client.getPoolAccountsPublic();
+
         // Create APY service
         const apyService = new APYService();
 
         // Fetch metadata and APYs in parallel
         const [metadataList, apyList] = await Promise.all([
           tokenMetadataService.getMultipleTokenMetadata(
-            POOLS.map(pool => pool.poolMint)
+            vaultData.poolMints.map((mint: PublicKey) => mint)
           ),
           apyService.getMultipleLSTAPY(
-            POOLS.map(pool => pool.stakePool)
+            vaultData.stakePools.map((pool: PublicKey) => pool)
           ),
         ]);
 
-        const poolsData: PoolWithMetadata[] = POOLS.map((pool, index) => ({
-          poolMint: pool.poolMint.toBase58(),
-          allocation: ALLOCATIONS[index],
+        const poolsData: PoolWithMetadata[] = vaultData.poolMints.map((mint: PublicKey, index: number) => ({
+          poolMint: mint.toBase58(),
+          allocation: vaultData.allocations[index],
           metadata: metadataList[index],
           apy: apyList[index],
         }));
@@ -103,17 +109,17 @@ export default function StakeBlendDemo() {
         setPoolsWithMetadata(poolsData);
 
         // Calculate weighted aggregate APY
-        const weightedAPY = apyService.calculateWeightedAPY(apyList, ALLOCATIONS);
+        const weightedAPY = apyService.calculateWeightedAPY(apyList, vaultData.allocations);
         setAggregateAPY(weightedAPY);
       } catch (err) {
-        console.error('Error loading token metadata and APYs:', err);
+        console.error('Error loading vault data, token metadata and APYs:', err);
       } finally {
         setMetadataLoading(false);
       }
     };
 
     fetchMetadataAndAPYs();
-  }, [connection]);
+  }, [client]);
 
   const loadBalances = async () => {
     if (!client) return;

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "update-idl": "cp ../target/idl/stake_blend.json src/lib/ && cp ../target/types/stake_blend.ts src/lib/",
+    "update-idl": "cp ../target/idl/stake_blend.json src/lib/ && cp ../target/types/stake_blend.ts src/lib/ && cp ../utils/vault-helpers.ts src/lib/vault-helpers-shared.ts",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run"

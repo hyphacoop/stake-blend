@@ -5,3 +5,6 @@ target
 node_modules
 test-ledger
 .yarn
+
+# Generated files
+web/src/lib/vault-helpers-shared.ts

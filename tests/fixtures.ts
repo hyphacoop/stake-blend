@@ -2,9 +2,17 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { StakeBlend } from "../target/types/stake_blend";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { StakePoolLayout } from '@solana/spl-stake-pool';
+import { getPDAs, findWithdrawAuthority, STAKE_POOL_PROGRAM } from '../utils/vault-helpers';
+
+// Re-export shared utilities for tests
+export { getPDAs, findWithdrawAuthority, STAKE_POOL_PROGRAM };
 
 /**
  * Common test fixtures and setup utilities
+ *
+ * NOTE: Pool configurations are kept here for test validator setup (Anchor.toml clones)
+ * but you can also query vault data dynamically using fetchVaultPools()
  */
 
 export const pools = [
@@ -32,25 +40,6 @@ export const pools = [
 ];
 
 export const expectedAllocations = [50_00, 50_00];
-
-export const STAKE_POOL_PROGRAM = new anchor.web3.PublicKey("SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy");
-
-export function getPDAs(programId: anchor.web3.PublicKey, vaultId: number = 0) {
-  const vaultIdBuffer = Buffer.alloc(8);
-  vaultIdBuffer.writeBigUInt64LE(BigInt(vaultId));
-
-  const [mintPda] = anchor.web3.PublicKey.findProgramAddressSync(
-    [Buffer.from("mint"), vaultIdBuffer],
-    programId
-  );
-
-  const [vaultPda] = anchor.web3.PublicKey.findProgramAddressSync(
-    [Buffer.from("vault"), vaultIdBuffer],
-    programId
-  );
-
-  return { mintPda, vaultPda };
-}
 
 /**
  * Initialize vault if it doesn't exist
@@ -217,4 +206,105 @@ export async function ensureUserAccountDoesNotExist(
   // or accept that it exists and document this limitation
 
   console.log("✓ Note: If ATA exists with 0 balance from previous tests, auto-creation will be skipped");
+}
+
+/**
+ * Query vault pool configuration dynamically from on-chain
+ * This demonstrates how to read vault configuration instead of hardcoding it
+ */
+export async function fetchVaultPools(
+  program: Program<StakeBlend>,
+  provider: anchor.AnchorProvider,
+  vaultId: number = 0
+) {
+  const { vaultPda } = getPDAs(program.programId, vaultId);
+
+  // Fetch vault account
+  const vault = await program.account.vault.fetch(vaultPda);
+
+  // Query each stake pool to derive full account info
+  const poolConfigs = [];
+
+  for (let i = 0; i < vault.stakePools.length; i++) {
+    const stakePool = vault.stakePools[i];
+    const poolMint = vault.poolMints[i];
+    const allocation = vault.allocations[i];
+
+    // Fetch stake pool account to get derived addresses
+    const stakePoolAccount = await provider.connection.getAccountInfo(stakePool);
+    if (!stakePoolAccount) {
+      throw new Error(`Stake pool not found: ${stakePool.toString()}`);
+    }
+
+    const stakePoolData = StakePoolLayout.decode(stakePoolAccount.data);
+
+    const reserve = new anchor.web3.PublicKey(stakePoolData.reserveStake);
+    const managerFee = new anchor.web3.PublicKey(stakePoolData.managerFeeAccount);
+
+    // Derive withdraw authority
+    const withdrawAuthority = findWithdrawAuthority(stakePool);
+
+    // Vault's ATA for pool tokens
+    const vaultPoolTokenAccount = getAssociatedTokenAddressSync(
+      poolMint,
+      vaultPda,
+      true
+    );
+
+    poolConfigs.push({
+      stakePool,
+      poolMint,
+      reserve,
+      withdrawAuthority,
+      managerFee,
+      vaultPoolTokenAccount,
+      allocation,
+    });
+  }
+
+  return {
+    vault,
+    poolConfigs,
+  };
+}
+
+/**
+ * Build remaining accounts for deposit (7 per pool) from vault query
+ */
+export function buildDepositRemainingAccounts(poolConfigs: any[]) {
+  const remainingAccounts = [];
+
+  for (const pool of poolConfigs) {
+    remainingAccounts.push(
+      { pubkey: pool.stakePool, isSigner: false, isWritable: true },
+      { pubkey: pool.withdrawAuthority, isSigner: false, isWritable: false },
+      { pubkey: pool.reserve, isSigner: false, isWritable: true },
+      { pubkey: pool.poolMint, isSigner: false, isWritable: true },
+      { pubkey: pool.vaultPoolTokenAccount, isSigner: false, isWritable: true },
+      { pubkey: pool.managerFee, isSigner: false, isWritable: true },
+      { pubkey: pool.managerFee, isSigner: false, isWritable: true } // referrer fee
+    );
+  }
+
+  return remainingAccounts;
+}
+
+/**
+ * Build remaining accounts for withdraw (6 per pool) from vault query
+ */
+export function buildWithdrawRemainingAccounts(poolConfigs: any[]) {
+  const remainingAccounts = [];
+
+  for (const pool of poolConfigs) {
+    remainingAccounts.push(
+      { pubkey: pool.stakePool, isSigner: false, isWritable: true },
+      { pubkey: pool.withdrawAuthority, isSigner: false, isWritable: false },
+      { pubkey: pool.reserve, isSigner: false, isWritable: true },
+      { pubkey: pool.poolMint, isSigner: false, isWritable: true },
+      { pubkey: pool.vaultPoolTokenAccount, isSigner: false, isWritable: true },
+      { pubkey: pool.managerFee, isSigner: false, isWritable: true }
+    );
+  }
+
+  return remainingAccounts;
 }

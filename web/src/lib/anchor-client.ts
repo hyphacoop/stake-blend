@@ -1,63 +1,74 @@
 import * as anchor from '@coral-xyz/anchor';
 import { Connection, PublicKey, SYSVAR_CLOCK_PUBKEY, SYSVAR_STAKE_HISTORY_PUBKEY, StakeProgram, Transaction } from '@solana/web3.js';
 import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID} from '@solana/spl-token';
-import { PROGRAM_ID, STAKE_POOL_PROGRAM, POOLS, ALLOCATIONS, MINT_PDA, VAULT_PDA, VAULT_ID } from './program-config';
+import { PROGRAM_ID, VAULT_ID } from './program-config';
 import type { StakeBlend } from './stake_blend';
 import idl from './stake_blend.json';
+import {
+  getPDAs,
+  fetchAllPoolAccounts,
+  buildDepositRemainingAccounts,
+  buildWithdrawRemainingAccounts,
+  STAKE_POOL_PROGRAM,
+  type PoolAccounts,
+} from './vault-helpers';
 
 
 export class StakeBlendClient {
   private connection: Connection;
   private wallet: anchor.Wallet;
   private program: anchor.Program<StakeBlend>;
+  private poolAccountsCache: PoolAccounts[] | null = null;
 
   constructor(connection: Connection, wallet: anchor.Wallet) {
     this.connection = connection;
     this.wallet = wallet;
 
-    // console.log('IDL structure:', idl);
-    // console.log('IDL types:', idl.types);
-    
     const provider = new anchor.AnchorProvider(connection, wallet, {});
-    // Use the typed IDL export instead of JSON
-    // this.program = new anchor.Program(
-    //   stakeBlendIdl as anchor.Idl, 
-    //   PROGRAM_ID, 
-    //   provider
-    // ) as anchor.Program<StakeBlend>;
     this.program = new anchor.Program<StakeBlend>(
       idl as anchor.Idl,
       provider
     );
   }
 
+  /**
+   * Fetch pool accounts from on-chain vault configuration
+   * Results are cached to avoid repeated queries
+   */
+  private async getPoolAccounts(): Promise<PoolAccounts[]> {
+    if (this.poolAccountsCache) {
+      return this.poolAccountsCache;
+    }
+
+    this.poolAccountsCache = await fetchAllPoolAccounts(
+      this.connection,
+      this.program,
+      VAULT_ID
+    );
+
+    return this.poolAccountsCache;
+  }
+
+  /**
+   * Clear the pool accounts cache (call if vault configuration changes)
+   */
+  public clearCache() {
+    this.poolAccountsCache = null;
+  }
+
 
   async deposit(amountSOL: number) {
+    const { mintPda, vaultPda } = getPDAs(this.program.programId, VAULT_ID);
     const userTokenAccount = await getAssociatedTokenAddress(
-      MINT_PDA,
+      mintPda,
       this.wallet.publicKey
     );
 
     const amount = new anchor.BN(amountSOL * 1e9);
 
-    const remainingAccounts = [];
-    for (const pool of POOLS) {
-      const vaultPoolTokenAccount = await getAssociatedTokenAddress(
-        pool.poolMint,
-        VAULT_PDA,
-        true
-      );
-
-      remainingAccounts.push(
-        { pubkey: pool.stakePool, isSigner: false, isWritable: true },
-        { pubkey: pool.withdrawAuthority, isSigner: false, isWritable: false },
-        { pubkey: pool.reserve, isSigner: false, isWritable: true },
-        { pubkey: pool.poolMint, isSigner: false, isWritable: true },
-        { pubkey: vaultPoolTokenAccount, isSigner: false, isWritable: true },
-        { pubkey: pool.managerFee, isSigner: false, isWritable: true },
-        { pubkey: pool.managerFee, isSigner: false, isWritable: true }
-      );
-    }
+    // Fetch pool accounts dynamically from on-chain vault
+    const poolAccounts = await this.getPoolAccounts();
+    const remainingAccounts = buildDepositRemainingAccounts(poolAccounts);
 
     // Check if user's ATA exists
     const accountInfo = await this.connection.getAccountInfo(userTokenAccount);
@@ -65,29 +76,22 @@ export class StakeBlendClient {
 
     if (!ataExists) {
       // ATA doesn't exist - build transaction with both createATA and deposit instructions
-      // const createAtaIx = createAssociatedTokenAccountInstruction(
-      //   this.wallet.publicKey, // payer
-      //   userTokenAccount,       // ata
-      //   this.wallet.publicKey, // owner
-      //   MINT_PDA               // mint
-      // );
       const createAtaIx = await this.program.methods
        .createUserAccount(new anchor.BN(VAULT_ID))
        .accounts({
          tokenAccount: userTokenAccount,
          signer: this.wallet.publicKey,
-         mint: MINT_PDA,
+         mint: mintPda,
          systemProgram: anchor.web3.SystemProgram.programId,
          tokenProgram: TOKEN_PROGRAM_ID,
          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
        }).instruction();
 
-
       const depositIx = await this.program.methods
         .deposit(new anchor.BN(VAULT_ID), amount)
         .accounts({
-          mint: MINT_PDA,
-          vault: VAULT_PDA,
+          mint: mintPda,
+          vault: vaultPda,
           userVaultTokenAccount: userTokenAccount,
           signer: this.wallet.publicKey,
           systemProgram: anchor.web3.SystemProgram.programId,
@@ -104,8 +108,8 @@ export class StakeBlendClient {
       return await this.program.methods
         .deposit(new anchor.BN(VAULT_ID), amount)
         .accounts({
-          mint: MINT_PDA,
-          vault: VAULT_PDA,
+          mint: mintPda,
+          vault: vaultPda,
           userVaultTokenAccount: userTokenAccount,
           signer: this.wallet.publicKey,
           systemProgram: anchor.web3.SystemProgram.programId,
@@ -118,36 +122,23 @@ export class StakeBlendClient {
   }
 
   async withdraw(sharesAmount: number) {
+    const { mintPda, vaultPda } = getPDAs(this.program.programId, VAULT_ID);
     const userTokenAccount = await getAssociatedTokenAddress(
-      MINT_PDA,
+      mintPda,
       this.wallet.publicKey
     );
-    
+
     const shares = new anchor.BN(sharesAmount * 1e9);
 
-    const remainingAccounts = [];
-    for (const pool of POOLS) {
-      const vaultPoolTokenAccount = await getAssociatedTokenAddress(
-        pool.poolMint,
-        VAULT_PDA,
-        true
-      );
-
-      remainingAccounts.push(
-        { pubkey: pool.stakePool, isSigner: false, isWritable: true },
-        { pubkey: pool.withdrawAuthority, isSigner: false, isWritable: false },
-        { pubkey: pool.reserve, isSigner: false, isWritable: true },
-        { pubkey: pool.poolMint, isSigner: false, isWritable: true },
-        { pubkey: vaultPoolTokenAccount, isSigner: false, isWritable: true },
-        { pubkey: pool.managerFee, isSigner: false, isWritable: true }
-      );
-    }
+    // Fetch pool accounts dynamically from on-chain vault
+    const poolAccounts = await this.getPoolAccounts();
+    const remainingAccounts = buildWithdrawRemainingAccounts(poolAccounts);
 
     return await this.program.methods
       .withdraw(new anchor.BN(VAULT_ID), shares)
       .accounts({
-        mint: MINT_PDA,
-        vault: VAULT_PDA,
+        mint: mintPda,
+        vault: vaultPda,
         userVaultTokenAccount: userTokenAccount,
         signer: this.wallet.publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
@@ -162,15 +153,16 @@ export class StakeBlendClient {
   }
 
   async getUserBalances() {
+    const { mintPda } = getPDAs(this.program.programId, VAULT_ID);
     const userTokenAccount = await getAssociatedTokenAddress(
-      MINT_PDA,
+      mintPda,
       this.wallet.publicKey
     );
 
     try {
       const solBalance = await this.connection.getBalance(this.wallet.publicKey);
       const tokenBalance = await this.connection.getTokenAccountBalance(userTokenAccount);
-      
+
       return {
         sol: solBalance / 1e9,
         vaultShares: parseFloat(tokenBalance.value.amount) / 1e9
@@ -181,5 +173,21 @@ export class StakeBlendClient {
         vaultShares: 0
       };
     }
+  }
+
+  /**
+   * Get vault data including pool configuration and allocations
+   */
+  async getVaultData() {
+    return await this.program.account.vault.fetch(
+      getPDAs(this.program.programId, VAULT_ID).vaultPda
+    );
+  }
+
+  /**
+   * Get current pool accounts
+   */
+  async getPoolAccountsPublic() {
+    return await this.getPoolAccounts();
   }
 }
