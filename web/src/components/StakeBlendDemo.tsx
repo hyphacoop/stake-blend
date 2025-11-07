@@ -6,6 +6,7 @@ import { PublicKey } from '@solana/web3.js';
 import { StakeBlendClient } from '../lib/anchor-client';
 import { tokenMetadataService, TokenMetadata } from '../lib/token-metadata';
 import { APYService, LSTAPYResult, formatAPY } from '../lib/apy-service';
+import { MARINADE_PROGRAM_ID, MARINADE_STATE } from '../lib/marinade-helpers';
 
 interface Balances {
   sol: number;
@@ -91,13 +92,20 @@ export default function StakeBlendDemo() {
         const apyService = new APYService();
 
         // Fetch metadata and APYs in parallel
+        // For APY lookup: Marinade pools need the program ID, not the state address
+        const apyLookupAddresses = vaultData.stakePools.map((pool: PublicKey) => {
+          // If this is the Marinade state address, use the Marinade program ID instead
+          if (pool.equals(MARINADE_STATE)) {
+            return MARINADE_PROGRAM_ID;
+          }
+          return pool;
+        });
+
         const [metadataList, apyList] = await Promise.all([
           tokenMetadataService.getMultipleTokenMetadata(
             vaultData.poolMints.map((mint: PublicKey) => mint)
           ),
-          apyService.getMultipleLSTAPY(
-            vaultData.stakePools.map((pool: PublicKey) => pool)
-          ),
+          apyService.getMultipleLSTAPY(apyLookupAddresses),
         ]);
 
         const poolsData: PoolWithMetadata[] = vaultData.poolMints.map((mint: PublicKey, index: number) => ({

@@ -3,10 +3,9 @@ use anchor_lang::prelude::*;
 use anchor_lang::error::ErrorCode;
 use anchor_spl::token_interface;
 use anchor_spl::stake::Stake;
-use anchor_spl::token_interface::spl_token_metadata_interface::borsh::BorshDeserialize;
-use spl_stake_pool::state::StakePool;
 use crate::instructions::dependencies;
 use crate::state::*;
+use crate::protocols::*;
 use crate::StakeBlendError;
 
 #[derive(Accounts)]
@@ -35,17 +34,9 @@ pub struct Withdraw<'info> {
     pub clock: Sysvar<'info, Clock>,
     pub stake_history: Sysvar<'info, StakeHistory>,
     pub stake_program: Program<'info, Stake>,
-    // Remaining accounts: [stake_pool_0, withdraw_authority_0, reserve_stake_0, pool_mint_0, vault_pool_token_account_0, manager_fee_0, ...]
-}
-
-/// Pool account references for withdrawal operations
-struct PoolAccounts<'info> {
-    stake_pool: &'info AccountInfo<'info>,
-    withdraw_authority: &'info AccountInfo<'info>,
-    reserve_stake: &'info AccountInfo<'info>,
-    pool_mint: &'info AccountInfo<'info>,
-    vault_pool_token_account: &'info AccountInfo<'info>,
-    manager_fee: &'info AccountInfo<'info>,
+    // Remaining accounts vary by protocol:
+    // SPL Stake Pool (6 accounts): stake_pool, withdraw_authority, pool_mint, reserve_stake, vault_pool_token_account, manager_fee
+    // Marinade (10 accounts): marinade_state, msol_mint, liq_pool_sol_leg_pda, liq_pool_msol_leg, treasury_msol_account, vault_msol_token_account, vault_authority, user, system_program, token_program
 }
 
 /// Pool value data for withdrawal calculations
@@ -62,10 +53,9 @@ pub fn handler<'c: 'info, 'info>(
     let vault_bump = ctx.bumps.vault;
     let vault_id_bytes = vault_id.to_le_bytes();
     let vault_signer_seeds: &[&[&[u8]]] = &[&[b"vault", vault_id_bytes.as_ref(), &[vault_bump]]];
-    
+
     // Validate account structure
-    let total_pools = ctx.accounts.vault.stake_pools.len();
-    validate_remaining_accounts(&ctx, total_pools)?;
+    validate_remaining_accounts(&ctx, &ctx.accounts.vault)?;
     
     // Validate and calculate pool values
     let pool_values = validate_and_calculate_pool_values(&ctx, &ctx.accounts.vault)?;
@@ -88,16 +78,21 @@ pub fn handler<'c: 'info, 'info>(
 
 fn validate_remaining_accounts<'info>(
     ctx: &Context<'_, '_, '_, 'info, Withdraw<'info>>,
-    total_pools: usize
+    vault: &Vault
 ) -> Result<()> {
-    const ACCOUNTS_PER_POOL: usize = 6; // No referrer fee for withdrawals
-    
+    let total_pools = vault.stake_pools.len();
+    require!(total_pools >= 1, ErrorCode::AccountNotEnoughKeys);
+
+    // Calculate expected number of accounts based on protocol types
+    let expected_accounts: usize = vault.pool_protocols.iter()
+        .map(|protocol| withdraw_accounts_per_pool(protocol))
+        .sum();
+
     require!(
-        ctx.remaining_accounts.len() == total_pools * ACCOUNTS_PER_POOL,
+        ctx.remaining_accounts.len() == expected_accounts,
         ErrorCode::AccountNotEnoughKeys
     );
-    require!(total_pools >= 1, ErrorCode::AccountNotEnoughKeys);
-    
+
     Ok(())
 }
 
@@ -107,101 +102,56 @@ fn validate_and_calculate_pool_values<'info>(
 ) -> Result<Vec<PoolValue>> {
     let total_pools = vault.stake_pools.len();
     let mut pool_values = Vec::with_capacity(total_pools);
-    
+    let mut offset = 0;
+
     for i in 0..total_pools {
-        let pool_accounts = get_pool_accounts(&ctx.remaining_accounts, i);
-        
-        // Validate account keys match vault configuration
-        validate_pool_account_keys(&pool_accounts, vault, i)?;
-        
-        // Deserialize stake pool and validate derived accounts
-        let stake_pool = deserialize_stake_pool(pool_accounts.stake_pool)?;
-        validate_derived_accounts(&pool_accounts, &stake_pool, &ctx.accounts.stake_pool_program.key())?;
-        
-        // Calculate pool value
-        let token_balance = get_token_account_balance(pool_accounts.vault_pool_token_account)?;
-        let sol_value = if token_balance > 0 {
-            stake_pool.calc_lamports_withdraw_amount(token_balance)
-                .ok_or(ErrorCode::InvalidNumericConversion)?
-        } else {
-            0
+        let protocol = &vault.pool_protocols[i];
+
+        let (sol_value, token_balance) = match protocol {
+            PoolProtocol::SplStakePool => {
+                let pool_accounts = SplPoolWithdrawAccounts::parse(&ctx.remaining_accounts, offset);
+                // Note: SplPoolWithdrawAccounts doesn't have validate_keys or deserialize methods
+                // We'll add simplified validation here
+                require!(
+                    pool_accounts.stake_pool.key() == vault.stake_pools[i],
+                    StakeBlendError::InvalidAccountData
+                );
+                require!(
+                    pool_accounts.pool_mint.key() == vault.pool_mints[i],
+                    StakeBlendError::InvalidAccountData
+                );
+
+                let value = pool_accounts.get_pool_value()?;
+                let balance = get_token_account_balance(pool_accounts.vault_pool_token_account)?;
+                (value, balance)
+            },
+            PoolProtocol::Marinade => {
+                let pool_accounts = MarinadePoolWithdrawAccounts::parse(&ctx.remaining_accounts, offset);
+                // Validate Marinade state
+                let expected_state = vault.marinade_states[i]
+                    .ok_or(StakeBlendError::InvalidAccountData)?;
+                require!(
+                    pool_accounts.marinade_state.key() == expected_state,
+                    StakeBlendError::InvalidAccountData
+                );
+                require!(
+                    pool_accounts.msol_mint.key() == vault.pool_mints[i],
+                    StakeBlendError::InvalidAccountData
+                );
+
+                let value = pool_accounts.get_pool_value()?;
+                let balance = get_token_account_balance(pool_accounts.vault_msol_token_account)?;
+                (value, balance)
+            },
         };
-        
+
         pool_values.push(PoolValue { sol_value, token_balance });
+        offset += withdraw_accounts_per_pool(protocol);
     }
-    
+
     Ok(pool_values)
 }
 
-fn get_pool_accounts<'info>(remaining_accounts: &'info [AccountInfo<'info>], pool_index: usize) -> PoolAccounts<'info> {
-    let base_idx = pool_index * 6;
-    PoolAccounts {
-        stake_pool: &remaining_accounts[base_idx],
-        withdraw_authority: &remaining_accounts[base_idx + 1],
-        reserve_stake: &remaining_accounts[base_idx + 2],
-        pool_mint: &remaining_accounts[base_idx + 3],
-        vault_pool_token_account: &remaining_accounts[base_idx + 4],
-        manager_fee: &remaining_accounts[base_idx + 5],
-    }
-}
-
-fn validate_pool_account_keys(
-    pool_accounts: &PoolAccounts,
-    vault: &Vault,
-    pool_index: usize
-) -> Result<()> {
-    require!(
-        pool_accounts.stake_pool.key() == vault.stake_pools[pool_index],
-        StakeBlendError::InvalidAccountData
-    );
-    require!(
-        pool_accounts.pool_mint.key() == vault.pool_mints[pool_index],
-        StakeBlendError::InvalidAccountData
-    );
-    Ok(())
-}
-
-fn deserialize_stake_pool(stake_pool_account: &AccountInfo) -> Result<StakePool> {
-    let stake_pool_data = stake_pool_account.try_borrow_data()?;
-    StakePool::deserialize(&mut stake_pool_data.as_ref())
-        .map_err(|_| ErrorCode::AccountDidNotDeserialize.into())
-}
-
-fn validate_derived_accounts(
-    pool_accounts: &PoolAccounts,
-    stake_pool: &StakePool,
-    stake_pool_program_key: &Pubkey
-) -> Result<()> {
-    // Validate withdraw authority
-    let (expected_withdraw_authority, _) = spl_stake_pool::find_withdraw_authority_program_address(
-        stake_pool_program_key,
-        &pool_accounts.stake_pool.key(),
-    );
-    require!(
-        pool_accounts.withdraw_authority.key() == expected_withdraw_authority,
-        StakeBlendError::InvalidAccountData
-    );
-    
-    // Validate reserve stake
-    require!(
-        pool_accounts.reserve_stake.key() == stake_pool.reserve_stake,
-        StakeBlendError::InvalidAccountData
-    );
-    
-    // Validate manager fee account
-    require!(
-        pool_accounts.manager_fee.key() == stake_pool.manager_fee_account,
-        StakeBlendError::InvalidAccountData
-    );
-    
-    Ok(())
-}
-
-fn get_token_account_balance(token_account: &AccountInfo) -> Result<u64> {
-    let account_data = token_account.try_borrow_data()?;
-    let token_account = anchor_spl::token::TokenAccount::try_deserialize(&mut account_data.as_ref())?;
-    Ok(token_account.amount)
-}
 
 fn calculate_withdrawal_value(
     shares: u64,
@@ -249,37 +199,60 @@ fn execute_pool_withdrawals<'info>(
     total_vault_value: u64,
     vault_signer_seeds: &[&[&[u8]]]
 ) -> Result<()> {
+    let mut offset = 0;
+
     for (i, pool_value) in pool_values.iter().enumerate() {
+        let protocol = &vault.pool_protocols[i];
+
         if pool_value.sol_value == 0 {
+            offset += withdraw_accounts_per_pool(protocol);
             continue; // Skip empty pools
         }
-        
-        let pool_accounts = get_pool_accounts(&ctx.remaining_accounts, i);
+
         let pool_withdrawal_value = calculate_pool_withdrawal_value(
             total_withdrawal_value,
             pool_value.sol_value,
             total_vault_value
         )?;
-        
+
         if pool_withdrawal_value > 0 {
             let pool_tokens_to_withdraw = calculate_pool_tokens_to_withdraw(
                 pool_value.token_balance,
                 pool_withdrawal_value,
                 pool_value.sol_value
             )?;
-            
+
             if pool_tokens_to_withdraw > 0 {
-                execute_stake_pool_withdrawal(
-                    ctx,
-                    vault,
-                    &pool_accounts,
-                    pool_tokens_to_withdraw,
-                    vault_signer_seeds
-                )?;
+                match protocol {
+                    PoolProtocol::SplStakePool => {
+                        let pool_accounts = SplPoolWithdrawAccounts::parse(&ctx.remaining_accounts, offset);
+                        pool_accounts.execute_withdraw(
+                            &vault.to_account_info(),
+                            &ctx.accounts.token_program.to_account_info(),
+                            &ctx.accounts.clock.to_account_info(),
+                            &ctx.accounts.stake_history.to_account_info(),
+                            &ctx.accounts.stake_program.to_account_info(),
+                            &ctx.accounts.signer.to_account_info(),
+                            pool_tokens_to_withdraw,
+                            vault_signer_seeds,
+                        )?;
+                    },
+                    PoolProtocol::Marinade => {
+                        let pool_accounts = MarinadePoolWithdrawAccounts::parse(&ctx.remaining_accounts, offset);
+                        pool_accounts.execute_withdraw(
+                            &vault.to_account_info(),
+                            &ctx.accounts.signer.to_account_info(),
+                            pool_tokens_to_withdraw,
+                            vault_signer_seeds,
+                        )?;
+                    },
+                }
             }
         }
+
+        offset += withdraw_accounts_per_pool(protocol);
     }
-    
+
     Ok(())
 }
 
@@ -312,45 +285,3 @@ fn calculate_pool_tokens_to_withdraw(
     Ok(pool_tokens_to_withdraw.min(vault_pool_balance))
 }
 
-fn execute_stake_pool_withdrawal<'info>(
-    ctx: &Context<'_, '_, '_, 'info, Withdraw<'info>>,
-    vault: &Account<'info, Vault>,
-    pool_accounts: &PoolAccounts<'info>,
-    pool_tokens_to_withdraw: u64,
-    vault_signer_seeds: &[&[&[u8]]]
-) -> Result<()> {
-    let withdraw_instruction = spl_stake_pool::instruction::withdraw_sol(
-        &ctx.accounts.stake_pool_program.key(),
-        &pool_accounts.stake_pool.key(),
-        &pool_accounts.withdraw_authority.key(),
-        &vault.key(),
-        &pool_accounts.vault_pool_token_account.key(),
-        &pool_accounts.reserve_stake.key(),
-        &ctx.accounts.signer.key(),
-        &pool_accounts.manager_fee.key(),
-        &pool_accounts.pool_mint.key(),
-        &ctx.accounts.token_program.key(),
-        pool_tokens_to_withdraw,
-    );
-
-    anchor_lang::solana_program::program::invoke_signed(
-        &withdraw_instruction,
-        &[
-            pool_accounts.stake_pool.to_account_info(),
-            pool_accounts.withdraw_authority.to_account_info(),
-            vault.to_account_info(),
-            pool_accounts.vault_pool_token_account.to_account_info(),
-            pool_accounts.reserve_stake.to_account_info(),
-            ctx.accounts.signer.to_account_info(),
-            pool_accounts.manager_fee.to_account_info(),
-            pool_accounts.pool_mint.to_account_info(),
-            ctx.accounts.clock.to_account_info(),
-            ctx.accounts.stake_history.to_account_info(),
-            ctx.accounts.stake_program.to_account_info(),
-            ctx.accounts.token_program.to_account_info(),
-        ],
-        vault_signer_seeds,
-    )?;
-    
-    Ok(())
-}

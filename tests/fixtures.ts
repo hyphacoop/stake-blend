@@ -4,9 +4,11 @@ import { StakeBlend } from "../target/types/stake_blend";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { StakePoolLayout } from '@solana/spl-stake-pool';
 import { getPDAs, findWithdrawAuthority, STAKE_POOL_PROGRAM } from '../utils/vault-helpers';
+import { createMarinadePoolConfig, getMarinadeAccounts, MARINADE_PROGRAM_ID } from './marinade-helpers';
 
 // Re-export shared utilities for tests
 export { getPDAs, findWithdrawAuthority, STAKE_POOL_PROGRAM };
+export { createMarinadePoolConfig, getMarinadeAccounts };
 
 /**
  * Common test fixtures and setup utilities
@@ -74,8 +76,18 @@ export async function ensureVaultInitialized(
     );
   }
 
+  // For backward compatibility: all existing pools are SPL Stake Pools
+  // Anchor enums must be passed as objects: { variantName: {} }
+  const poolProtocols = pools.map(() => ({ splStakePool: {} }));
+  const marinadeStates = pools.map(() => null); // No Marinade pools
+
   await program.methods
-    .initialize(new anchor.BN(vaultId), expectedAllocations)
+    .initialize(
+      new anchor.BN(vaultId),
+      expectedAllocations,
+      poolProtocols,
+      marinadeStates
+    )
     .accounts({
       mint: mintPda,
       vault: vaultPda,
@@ -304,6 +316,120 @@ export function buildWithdrawRemainingAccounts(poolConfigs: any[]) {
       { pubkey: pool.vaultPoolTokenAccount, isSigner: false, isWritable: true },
       { pubkey: pool.managerFee, isSigner: false, isWritable: true }
     );
+  }
+
+  return remainingAccounts;
+}
+
+/**
+ * Protocol enum mapping (matches program's PoolProtocol enum)
+ * Note: When passing to Anchor, use the object format:
+ * - SPL: { splStakePool: {} }
+ * - Marinade: { marinade: {} }
+ */
+export const PoolProtocol = {
+  SplStakePool: 0,
+  Marinade: 1,
+} as const;
+
+/**
+ * Helper to create Anchor-compatible protocol enum objects
+ */
+export const createProtocolEnum = (protocol: number) => {
+  if (protocol === PoolProtocol.SplStakePool) {
+    return { splStakePool: {} };
+  } else if (protocol === PoolProtocol.Marinade) {
+    return { marinade: {} };
+  }
+  throw new Error(`Unknown protocol: ${protocol}`);
+};
+
+/**
+ * Build remaining accounts for mixed protocol deposits
+ * Handles both SPL stake pools and Marinade dynamically based on protocol type
+ */
+export function buildMixedDepositRemainingAccounts(
+  poolConfigs: any[],
+  poolProtocols: number[]
+) {
+  const remainingAccounts = [];
+
+  for (let i = 0; i < poolConfigs.length; i++) {
+    const pool = poolConfigs[i];
+    const protocol = poolProtocols[i];
+
+    if (protocol === PoolProtocol.SplStakePool) {
+      // SPL Stake Pool: 7 accounts
+      remainingAccounts.push(
+        { pubkey: pool.stakePool, isSigner: false, isWritable: true },
+        { pubkey: pool.withdrawAuthority, isSigner: false, isWritable: false },
+        { pubkey: pool.reserve, isSigner: false, isWritable: true },
+        { pubkey: pool.poolMint, isSigner: false, isWritable: true },
+        { pubkey: pool.vaultPoolTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: pool.managerFee, isSigner: false, isWritable: true },
+        { pubkey: pool.managerFee, isSigner: false, isWritable: true } // referrer fee
+      );
+    } else if (protocol === PoolProtocol.Marinade) {
+      // Marinade: 11 accounts
+      remainingAccounts.push(
+        { pubkey: pool.marinadeState, isSigner: false, isWritable: true },
+        { pubkey: pool.msolMint, isSigner: false, isWritable: true },
+        { pubkey: pool.liqPoolSolLegPda, isSigner: false, isWritable: true },
+        { pubkey: pool.liqPoolMSolLeg, isSigner: false, isWritable: true },
+        { pubkey: pool.liqPoolMSolLegAuthority, isSigner: false, isWritable: false },
+        { pubkey: pool.reservePda, isSigner: false, isWritable: true },
+        { pubkey: pool.vaultMSolTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: pool.msolMintAuthority, isSigner: false, isWritable: false },
+        { pubkey: anchor.web3.SystemProgram.programId, isSigner: false, isWritable: false },
+        { pubkey: anchor.utils.token.TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: MARINADE_PROGRAM_ID, isSigner: false, isWritable: false }
+      );
+    }
+  }
+
+  return remainingAccounts;
+}
+
+/**
+ * Build remaining accounts for mixed protocol withdrawals
+ * Handles both SPL stake pools and Marinade dynamically based on protocol type
+ */
+export function buildMixedWithdrawRemainingAccounts(
+  poolConfigs: any[],
+  poolProtocols: number[]
+) {
+  const remainingAccounts = [];
+
+  for (let i = 0; i < poolConfigs.length; i++) {
+    const pool = poolConfigs[i];
+    const protocol = poolProtocols[i];
+
+    if (protocol === PoolProtocol.SplStakePool) {
+      // SPL Stake Pool: 6 accounts
+      remainingAccounts.push(
+        { pubkey: pool.stakePool, isSigner: false, isWritable: true },
+        { pubkey: pool.withdrawAuthority, isSigner: false, isWritable: false },
+        { pubkey: pool.reserve, isSigner: false, isWritable: true },
+        { pubkey: pool.poolMint, isSigner: false, isWritable: true },
+        { pubkey: pool.vaultPoolTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: pool.managerFee, isSigner: false, isWritable: true }
+      );
+    } else if (protocol === PoolProtocol.Marinade) {
+      // Marinade: 10 accounts (6 pool-specific + 4 programs/sysvars)
+      remainingAccounts.push(
+        { pubkey: pool.marinadeState, isSigner: false, isWritable: true },
+        { pubkey: pool.msolMint, isSigner: false, isWritable: true },
+        { pubkey: pool.liqPoolSolLegPda, isSigner: false, isWritable: true },
+        { pubkey: pool.liqPoolMSolLeg, isSigner: false, isWritable: true },
+        { pubkey: pool.treasuryMSolAccount, isSigner: false, isWritable: true },
+        { pubkey: pool.vaultMSolTokenAccount, isSigner: false, isWritable: true },
+        // Note: vault_authority, user, system_program, token_program are passed via main context
+        // But we need to pass them again in remaining_accounts for the CPI
+        { pubkey: anchor.web3.SystemProgram.programId, isSigner: false, isWritable: false },
+        { pubkey: anchor.utils.token.TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: MARINADE_PROGRAM_ID, isSigner: false, isWritable: false }
+      );
+    }
   }
 
   return remainingAccounts;

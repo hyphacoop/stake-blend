@@ -292,6 +292,24 @@
           "type": {
             "vec": "u16"
           }
+        },
+        {
+          "name": "pool_protocols",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "PoolProtocol"
+              }
+            }
+          }
+        },
+        {
+          "name": "marinade_states",
+          "type": {
+            "vec": {
+              "option": "pubkey"
+            }
+          }
         }
       ]
     },
@@ -420,6 +438,20 @@
   ],
   "types": [
     {
+      "name": "PoolProtocol",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "SplStakePool"
+          },
+          {
+            "name": "Marinade"
+          }
+        ]
+      }
+    },
+    {
       "name": "Vault",
       "type": {
         "kind": "struct",
@@ -444,6 +476,24 @@
             "name": "allocations",
             "type": {
               "vec": "u16"
+            }
+          },
+          {
+            "name": "pool_protocols",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "PoolProtocol"
+                }
+              }
+            }
+          },
+          {
+            "name": "marinade_states",
+            "type": {
+              "vec": {
+                "option": "pubkey"
+              }
             }
           },
           {

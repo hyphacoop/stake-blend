@@ -298,6 +298,24 @@ export type StakeBlend = {
           "type": {
             "vec": "u16"
           }
+        },
+        {
+          "name": "poolProtocols",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "poolProtocol"
+              }
+            }
+          }
+        },
+        {
+          "name": "marinadeStates",
+          "type": {
+            "vec": {
+              "option": "pubkey"
+            }
+          }
         }
       ]
     },
@@ -426,6 +444,20 @@ export type StakeBlend = {
   ],
   "types": [
     {
+      "name": "poolProtocol",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "splStakePool"
+          },
+          {
+            "name": "marinade"
+          }
+        ]
+      }
+    },
+    {
       "name": "vault",
       "type": {
         "kind": "struct",
@@ -450,6 +482,24 @@ export type StakeBlend = {
             "name": "allocations",
             "type": {
               "vec": "u16"
+            }
+          },
+          {
+            "name": "poolProtocols",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "poolProtocol"
+                }
+              }
+            }
+          },
+          {
+            "name": "marinadeStates",
+            "type": {
+              "vec": {
+                "option": "pubkey"
+              }
             }
           },
           {

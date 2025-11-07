@@ -19,10 +19,12 @@ export class StakeBlendClient {
   private wallet: anchor.Wallet;
   private program: anchor.Program<StakeBlend>;
   private poolAccountsCache: PoolAccounts[] | null = null;
+  private vaultId: number;
 
-  constructor(connection: Connection, wallet: anchor.Wallet) {
+  constructor(connection: Connection, wallet: anchor.Wallet, vaultId: number = VAULT_ID) {
     this.connection = connection;
     this.wallet = wallet;
+    this.vaultId = vaultId;
 
     const provider = new anchor.AnchorProvider(connection, wallet, {});
     this.program = new anchor.Program<StakeBlend>(
@@ -43,7 +45,7 @@ export class StakeBlendClient {
     this.poolAccountsCache = await fetchAllPoolAccounts(
       this.connection,
       this.program,
-      VAULT_ID
+      this.vaultId
     );
 
     return this.poolAccountsCache;
@@ -58,7 +60,7 @@ export class StakeBlendClient {
 
 
   async deposit(amountSOL: number) {
-    const { mintPda, vaultPda } = getPDAs(this.program.programId, VAULT_ID);
+    const { mintPda, vaultPda } = getPDAs(this.program.programId, this.vaultId);
     const userTokenAccount = await getAssociatedTokenAddress(
       mintPda,
       this.wallet.publicKey
@@ -77,7 +79,7 @@ export class StakeBlendClient {
     if (!ataExists) {
       // ATA doesn't exist - build transaction with both createATA and deposit instructions
       const createAtaIx = await this.program.methods
-       .createUserAccount(new anchor.BN(VAULT_ID))
+       .createUserAccount(new anchor.BN(this.vaultId))
        .accounts({
          tokenAccount: userTokenAccount,
          signer: this.wallet.publicKey,
@@ -88,7 +90,7 @@ export class StakeBlendClient {
        }).instruction();
 
       const depositIx = await this.program.methods
-        .deposit(new anchor.BN(VAULT_ID), amount)
+        .deposit(new anchor.BN(this.vaultId), amount)
         .accounts({
           mint: mintPda,
           vault: vaultPda,
@@ -106,7 +108,7 @@ export class StakeBlendClient {
     } else {
       // ATA exists - use normal flow
       return await this.program.methods
-        .deposit(new anchor.BN(VAULT_ID), amount)
+        .deposit(new anchor.BN(this.vaultId), amount)
         .accounts({
           mint: mintPda,
           vault: vaultPda,
@@ -122,7 +124,7 @@ export class StakeBlendClient {
   }
 
   async withdraw(sharesAmount: number) {
-    const { mintPda, vaultPda } = getPDAs(this.program.programId, VAULT_ID);
+    const { mintPda, vaultPda } = getPDAs(this.program.programId, this.vaultId);
     const userTokenAccount = await getAssociatedTokenAddress(
       mintPda,
       this.wallet.publicKey
@@ -135,7 +137,7 @@ export class StakeBlendClient {
     const remainingAccounts = buildWithdrawRemainingAccounts(poolAccounts);
 
     return await this.program.methods
-      .withdraw(new anchor.BN(VAULT_ID), shares)
+      .withdraw(new anchor.BN(this.vaultId), shares)
       .accounts({
         mint: mintPda,
         vault: vaultPda,
@@ -153,7 +155,7 @@ export class StakeBlendClient {
   }
 
   async getUserBalances() {
-    const { mintPda } = getPDAs(this.program.programId, VAULT_ID);
+    const { mintPda } = getPDAs(this.program.programId, this.vaultId);
     const userTokenAccount = await getAssociatedTokenAddress(
       mintPda,
       this.wallet.publicKey
@@ -180,7 +182,7 @@ export class StakeBlendClient {
    */
   async getVaultData() {
     return await this.program.account.vault.fetch(
-      getPDAs(this.program.programId, VAULT_ID).vaultPda
+      getPDAs(this.program.programId, this.vaultId).vaultPda
     );
   }
 
