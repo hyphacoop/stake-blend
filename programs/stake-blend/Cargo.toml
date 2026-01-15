@@ -23,4 +23,5 @@ anchor-spl = {version = "0.31.1", features = ["stake"]}
 solana-sysvar = "3.0.0"
 spl-associated-token-account = "7.0.0"
 spl-stake-pool = {version = "2.0.3", features = ["no-entrypoint"]}
+borsh = "0.10.3"
 

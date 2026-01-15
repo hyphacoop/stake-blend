@@ -3,6 +3,7 @@ use anchor_lang::prelude::*;
 
 pub mod instructions;
 pub mod state;
+pub mod protocols;
 use instructions::*;
 
 // declare_id!("3uUWcoJawNHKnsann7Vrw9LzVhMxgnNUuDeXYuZikYYT");
@@ -16,8 +17,10 @@ pub mod stake_blend {
         ctx: Context<'_, '_, 'c, 'info, Initialize<'info>>,
         vault_id: u64,
         allocations: Vec<u16>,
+        pool_protocols: Vec<state::PoolProtocol>,
+        marinade_states: Vec<Option<Pubkey>>,
     ) -> Result<()> {
-        initialize::handler(ctx, vault_id, allocations)
+        initialize::handler(ctx, vault_id, allocations, pool_protocols, marinade_states)
     }
 
     pub fn create_user_account(ctx: Context<CreateUserAccount>, vault_id: u64) -> Result<()> {

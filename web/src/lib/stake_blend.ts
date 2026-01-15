@@ -89,7 +89,24 @@ export type StakeBlend = {
           "signer": true
         },
         {
-          "name": "mint"
+          "name": "mint",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "vaultId"
+              }
+            ]
+          }
         },
         {
           "name": "systemProgram",
@@ -103,7 +120,12 @@ export type StakeBlend = {
           "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "vaultId",
+          "type": "u64"
+        }
+      ]
     },
     {
       "name": "deposit",
@@ -131,6 +153,10 @@ export type StakeBlend = {
                   110,
                   116
                 ]
+              },
+              {
+                "kind": "arg",
+                "path": "vaultId"
               }
             ]
           }
@@ -149,6 +175,10 @@ export type StakeBlend = {
                   108,
                   116
                 ]
+              },
+              {
+                "kind": "arg",
+                "path": "vaultId"
               }
             ]
           }
@@ -175,6 +205,10 @@ export type StakeBlend = {
         }
       ],
       "args": [
+        {
+          "name": "vaultId",
+          "type": "u64"
+        },
         {
           "name": "amount",
           "type": "u64"
@@ -207,6 +241,10 @@ export type StakeBlend = {
                   110,
                   116
                 ]
+              },
+              {
+                "kind": "arg",
+                "path": "vaultId"
               }
             ]
           }
@@ -225,6 +263,10 @@ export type StakeBlend = {
                   108,
                   116
                 ]
+              },
+              {
+                "kind": "arg",
+                "path": "vaultId"
               }
             ]
           }
@@ -248,9 +290,31 @@ export type StakeBlend = {
       ],
       "args": [
         {
+          "name": "vaultId",
+          "type": "u64"
+        },
+        {
           "name": "allocations",
           "type": {
             "vec": "u16"
+          }
+        },
+        {
+          "name": "poolProtocols",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "poolProtocol"
+              }
+            }
+          }
+        },
+        {
+          "name": "marinadeStates",
+          "type": {
+            "vec": {
+              "option": "pubkey"
+            }
           }
         }
       ]
@@ -281,6 +345,10 @@ export type StakeBlend = {
                   110,
                   116
                 ]
+              },
+              {
+                "kind": "arg",
+                "path": "vaultId"
               }
             ]
           }
@@ -299,6 +367,10 @@ export type StakeBlend = {
                   108,
                   116
                 ]
+              },
+              {
+                "kind": "arg",
+                "path": "vaultId"
               }
             ]
           }
@@ -328,7 +400,8 @@ export type StakeBlend = {
           "address": "SysvarC1ock11111111111111111111111111111111"
         },
         {
-          "name": "stakeHistory"
+          "name": "stakeHistory",
+          "address": "SysvarStakeHistory1111111111111111111111111"
         },
         {
           "name": "stakeProgram",
@@ -336,6 +409,10 @@ export type StakeBlend = {
         }
       ],
       "args": [
+        {
+          "name": "vaultId",
+          "type": "u64"
+        },
         {
           "name": "shares",
           "type": "u64"
@@ -358,12 +435,37 @@ export type StakeBlend = {
       ]
     }
   ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "invalidAccountData",
+      "msg": "Invalid account data provided"
+    }
+  ],
   "types": [
+    {
+      "name": "poolProtocol",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "splStakePool"
+          },
+          {
+            "name": "marinade"
+          }
+        ]
+      }
+    },
     {
       "name": "vault",
       "type": {
         "kind": "struct",
         "fields": [
+          {
+            "name": "vaultId",
+            "type": "u64"
+          },
           {
             "name": "stakePools",
             "type": {
@@ -380,6 +482,24 @@ export type StakeBlend = {
             "name": "allocations",
             "type": {
               "vec": "u16"
+            }
+          },
+          {
+            "name": "poolProtocols",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "poolProtocol"
+                }
+              }
+            }
+          },
+          {
+            "name": "marinadeStates",
+            "type": {
+              "vec": {
+                "option": "pubkey"
+              }
             }
           },
           {

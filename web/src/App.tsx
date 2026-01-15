@@ -42,7 +42,7 @@ export default function App() {
               </div>
             </div>
             <div className="info-box">
-              <span className="prompt">[INFO]</span> Diversified liquid staking exposure through multi-LST vaults
+              <span className="prompt">[INFO]</span> Diversified liquid staking exposure through multi-LST vaults | <a href="https://docs.google.com/forms/d/e/1FAIpQLScZzy3-k8A4zpxqhCQT4OF9Diz-mYUfbfAbWSHfg22up9_nWw/viewform?usp=dialog" target="_blank" rel="noopener noreferrer">Feedback please!</a>
             </div>
             <StakeBlendDemo />
           </div>

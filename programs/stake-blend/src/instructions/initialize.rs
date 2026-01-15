@@ -8,7 +8,7 @@ use anchor_spl::associated_token::AssociatedToken;
 use crate::state::*;
 
 #[derive(Accounts)]
-#[instruction(vault_id: u64, allocations: Vec<u16>)]
+#[instruction(vault_id: u64, allocations: Vec<u16>, pool_protocols: Vec<PoolProtocol>, marinade_states: Vec<Option<Pubkey>>)]
 pub struct Initialize<'info> {
     #[account(
         init,
@@ -38,13 +38,17 @@ pub struct Initialize<'info> {
 }
 
 pub fn handler<'c: 'info, 'info>(
-    ctx: Context<'_, '_, 'c, 'info, Initialize<'info>>, vault_id: u64, allocations: Vec<u16>
+    ctx: Context<'_, '_, 'c, 'info, Initialize<'info>>,
+    vault_id: u64,
+    allocations: Vec<u16>,
+    pool_protocols: Vec<PoolProtocol>,
+    marinade_states: Vec<Option<Pubkey>>
 ) -> Result<()> {
     let vault = &mut ctx.accounts.vault;
-    
+
     // Calculate total number of pools
     let total_pools = ctx.remaining_accounts.len() / 3;
-    
+
     // Validate we have the right number of accounts and allocations
     require!(
         ctx.remaining_accounts.len() % 3 == 0,
@@ -55,20 +59,39 @@ pub fn handler<'c: 'info, 'info>(
         ErrorCode::AccountNotEnoughKeys
     );
     require!(
+        pool_protocols.len() == total_pools,
+        ErrorCode::AccountNotEnoughKeys
+    );
+    require!(
+        marinade_states.len() == total_pools,
+        ErrorCode::AccountNotEnoughKeys
+    );
+    require!(
         total_pools >= 1,
         ErrorCode::AccountNotEnoughKeys
     );
+
     // Validate allocations sum to 100%
     let total_allocation: u32 = allocations.iter().map(|&x| x as u32).sum();
     require!(
         total_allocation == 10000,
         ErrorCode::InvalidNumericConversion
     );
-    
+
+    // Validate Marinade pools have state account specified
+    for (i, protocol) in pool_protocols.iter().enumerate() {
+        if *protocol == PoolProtocol::Marinade {
+            require!(
+                marinade_states[i].is_some(),
+                crate::StakeBlendError::InvalidAccountData
+            );
+        }
+    }
+
     // Build vectors from ALL remaining accounts
     let mut stake_pools = Vec::new();
     let mut pool_mints = Vec::new();
-    
+
     // Parse remaining accounts (triplets: stake_pool, pool_mint, ata, ...)
     for i in (0..ctx.remaining_accounts.len()).step_by(3) {
         let stake_pool = &ctx.remaining_accounts[i];
@@ -92,7 +115,7 @@ pub fn handler<'c: 'info, 'info>(
                 },
             ),
         )?;
- 
+
         msg!("Created ATA for pool {}: {}", i/3, ata_account.key());
     }
 
@@ -101,6 +124,8 @@ pub fn handler<'c: 'info, 'info>(
     vault.stake_pools = stake_pools;
     vault.pool_mints = pool_mints;
     vault.allocations = allocations;
+    vault.pool_protocols = pool_protocols; // Already validated, use directly
+    vault.marinade_states = marinade_states;
     vault.total_shares_issued = 0;
     vault.bump = ctx.bumps.vault;
 
